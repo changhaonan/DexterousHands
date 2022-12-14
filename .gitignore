@@ -136,3 +136,6 @@ bi-dexhands/runs
 assets/dataset
 
 bi_dexhands.egg-info
+
+# vscode
+.vscode

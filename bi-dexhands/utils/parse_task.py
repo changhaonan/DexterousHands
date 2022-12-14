@@ -19,6 +19,7 @@ from tasks.shadow_hand_bottle_cap import ShadowHandBottleCap
 from tasks.shadow_hand_push_block import ShadowHandPushBlock
 from tasks.shadow_hand_swing_cup import ShadowHandSwingCup
 from tasks.shadow_hand_grasp_and_place import ShadowHandGraspAndPlace
+from tasks.shadow_hand_grasp_and_place_decouple import ShadowHandGraspAndPlaceDecouple
 from tasks.shadow_hand_scissors import ShadowHandScissors
 from tasks.shadow_hand_switch import ShadowHandSwitch
 from tasks.shadow_hand_pen import ShadowHandPen
