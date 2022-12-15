@@ -8,6 +8,7 @@
 from ast import arg
 import numpy as np
 import random
+import datetime
 
 from utils.config import set_np_formatting, set_seed, get_args, parse_sim_params, load_cfg
 from utils.parse_task import parse_task
@@ -16,6 +17,7 @@ from utils.process_marl import process_MultiAgentRL, get_AgentIndex
 from utils.process_mtrl import *
 from utils.process_metarl import *
 from utils.process_offrl import *
+
 
 def train():
     print("Algorithm: ", args.algo)
@@ -92,4 +94,16 @@ if __name__ == '__main__':
     cfg, cfg_train, logdir = load_cfg(args)
     sim_params = parse_sim_params(args, cfg, cfg_train)
     set_seed(cfg_train.get("seed", -1), cfg_train.get("torch_deterministic", False))
+    
+    import wandb
+    time_str = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    run_name = f"{args.task}_{time_str}"
+    run = wandb.init(
+        project=args.task,
+        config=cfg,
+        sync_tensorboard=True,
+        name=run_name,
+        resume="allow",
+        monitor_gym=True,
+        )
     train()

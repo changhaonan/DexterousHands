@@ -4,10 +4,12 @@ env:
   numEnvs: 128
   envSpacing: 1.5
   episodeLength: 500
-  enableDebugVis: False
+  enableDebugVis: True
   cameraDebug: True
   pointCloudDebug: True
   aggregateMode: 1
+
+  sub_task: "move"
 
   stiffnessScale: 1.0
   forceLimitScale: 1.0
@@ -24,15 +26,15 @@ env:
   resetDofPosRandomInterval: 0.0
   resetDofVelRandomInterval: 0.0
 
-  distRewardScale: 20
+  distRewardScale: -1.0
   transition_scale: 0.5
   orientation_scale: 0.1
   rotRewardScale: 1.0
   rotEps: 0.1
   actionPenaltyScale: -0.0002
   reachGoalBonus: 250
-  fallDistance: 0.4
-  fallPenalty: 0.0
+  fallDistance: 1.0
+  fallPenalty: -100.0
 
   objectType: "pot" # can be block, egg or pen
   observationType: "full_state" # point_cloud or full_state

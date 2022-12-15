@@ -63,6 +63,8 @@ class ShadowHandGraspAndPlaceDecouple(BaseTask):
 
         self.is_multi_agent = is_multi_agent
 
+        self.sub_task = self.cfg["env"]["sub_task"]
+
         self.randomize = self.cfg["task"]["randomize"]
         self.randomization_params = self.cfg["task"]["randomization_params"]
         self.aggregate_mode = self.cfg["env"]["aggregateMode"]
@@ -653,15 +655,26 @@ class ShadowHandGraspAndPlaceDecouple(BaseTask):
         Args:
             actions (tensor): Actions of agents in the all environment 
         """
-        self.rew_buf[:], self.reset_buf[:], self.reset_goal_buf[:], self.progress_buf[:], self.successes[:], self.consecutive_successes[:] = compute_hand_reward(
-            self.rew_buf, self.reset_buf, self.reset_goal_buf, self.progress_buf, self.successes, self.consecutive_successes,
-            self.max_episode_length, self.object_pos, self.object_rot, self.goal_pos, self.goal_rot, self.block_right_handle_pos, self.block_left_handle_pos, 
-            self.left_hand_pos, self.right_hand_pos, self.right_hand_ff_pos, self.right_hand_mf_pos, self.right_hand_rf_pos, self.right_hand_lf_pos, self.right_hand_th_pos, 
-            self.left_hand_ff_pos, self.left_hand_mf_pos, self.left_hand_rf_pos, self.left_hand_lf_pos, self.left_hand_th_pos, 
-            self.dist_reward_scale, self.rot_reward_scale, self.rot_eps, self.actions, self.action_penalty_scale,
-            self.success_tolerance, self.reach_goal_bonus, self.fall_dist, self.fall_penalty,
-            self.max_consecutive_successes, self.av_factor, (self.object_type == "pen")
-        )
+        if self.sub_task == "move":
+            self.rew_buf[:], self.reset_buf[:], self.reset_goal_buf[:], self.progress_buf[:], self.successes[:], self.consecutive_successes[:] = compute_hand_move_reward(
+                self.rew_buf, self.reset_buf, self.reset_goal_buf, self.progress_buf, self.successes, self.consecutive_successes,
+                self.max_episode_length, self.goal_left_move_pos, self.goal_right_move_pos,
+                self.left_hand_pos, self.right_hand_pos,
+                self.dist_reward_scale, self.rot_reward_scale, self.rot_eps, self.actions, self.action_penalty_scale,
+                self.success_tolerance, self.reach_goal_bonus,
+                self.fall_dist, self.fall_penalty,
+                self.max_consecutive_successes, self.av_factor
+            )
+        else:
+            self.rew_buf[:], self.reset_buf[:], self.reset_goal_buf[:], self.progress_buf[:], self.successes[:], self.consecutive_successes[:] = compute_hand_reward(
+                self.rew_buf, self.reset_buf, self.reset_goal_buf, self.progress_buf, self.successes, self.consecutive_successes,
+                self.max_episode_length, self.object_pos, self.object_rot, self.goal_pos, self.goal_rot, self.block_right_handle_pos, self.block_left_handle_pos, 
+                self.left_hand_pos, self.right_hand_pos, self.right_hand_ff_pos, self.right_hand_mf_pos, self.right_hand_rf_pos, self.right_hand_lf_pos, self.right_hand_th_pos, 
+                self.left_hand_ff_pos, self.left_hand_mf_pos, self.left_hand_rf_pos, self.left_hand_lf_pos, self.left_hand_th_pos, 
+                self.dist_reward_scale, self.rot_reward_scale, self.rot_eps, self.actions, self.action_penalty_scale,
+                self.success_tolerance, self.reach_goal_bonus, self.fall_dist, self.fall_penalty,
+                self.max_consecutive_successes, self.av_factor, (self.object_type == "pen")
+            )
 
         self.extras['successes'] = self.successes
         self.extras['consecutive_successes'] = self.consecutive_successes
@@ -756,6 +769,14 @@ class ShadowHandGraspAndPlaceDecouple(BaseTask):
 
         self.goal_pos = to_torch([-0.3, 0, 0.6], dtype=torch.float, device=self.device).repeat((self.num_envs, 1))
         self.goal_rot = self.goal_states[:, 3:7]
+
+        # move goal
+        if self.sub_task == "move":
+            self.goal_left_move_pos = to_torch([-0.3, -0.3, 0.7], dtype=torch.float, device=self.device).repeat((self.num_envs, 1))
+            self.goal_left_move_rot = self.goal_states[:, 3:7]
+
+            self.goal_right_move_pos = to_torch([0.3, 0.3, 0.7], dtype=torch.float, device=self.device).repeat((self.num_envs, 1))
+            self.goal_right_move_rot = self.goal_states[:, 3:7]
 
         self.fingertip_state = self.rigid_body_states[:, self.fingertip_handles][:, :, 0:13]
         self.fingertip_pos = self.rigid_body_states[:, self.fingertip_handles][:, :, 0:3]
@@ -1195,8 +1216,12 @@ class ShadowHandGraspAndPlaceDecouple(BaseTask):
             self.gym.refresh_rigid_body_state_tensor(self.sim)
 
             for i in range(self.num_envs):
-                self.add_debug_lines(self.envs[i], self.block_right_handle_pos[i], self.block_right_handle_rot[i])
-                self.add_debug_lines(self.envs[i], self.block_left_handle_pos[i], self.block_left_handle_rot[i])
+                if self.sub_task == "move":
+                    self.add_debug_lines(self.envs[i], self.goal_left_move_pos[i], self.goal_left_move_rot[i])
+                    self.add_debug_lines(self.envs[i], self.goal_right_move_pos[i], self.goal_right_move_rot[i])
+                else:
+                    self.add_debug_lines(self.envs[i], self.block_right_handle_pos[i], self.block_right_handle_rot[i])
+                    self.add_debug_lines(self.envs[i], self.block_left_handle_pos[i], self.block_left_handle_rot[i])
                 # self.add_debug_lines(self.envs[i], self.goal_pos[i], self.block_left_handle_rot[i])
                 # self.add_debug_lines(self.envs[i], self.right_hand_ff_pos[i], self.right_hand_ff_rot[i])
                 # self.add_debug_lines(self.envs[i], self.right_hand_mf_pos[i], self.right_hand_mf_rot[i])
@@ -1292,6 +1317,7 @@ def depth_image_to_point_cloud_GPU(camera_tensor, camera_view_matrix_inv, camera
     points = position[:, 0:3]
 
     return points
+
 
 @torch.jit.script
 def compute_hand_reward(
@@ -1419,6 +1445,102 @@ def compute_hand_reward(
     num_resets = torch.sum(resets)
     finished_cons_successes = torch.sum(successes * resets.float())
 
+    cons_successes = torch.where(resets > 0, successes * resets, consecutive_successes).mean()
+    
+    return reward, resets, goal_resets, progress_buf, successes, cons_successes
+
+
+# reward for moving each hand to different target
+@torch.jit.script
+def compute_hand_move_reward(
+    rew_buf, reset_buf, reset_goal_buf, progress_buf, successes, consecutive_successes,
+    max_episode_length: float, goal_left_pos, goal_right_pos, 
+    left_hand_pos, right_hand_pos,
+    dist_reward_scale: float, rot_reward_scale: float, rot_eps: float,
+    actions, action_penalty_scale: float,
+    success_tolerance: float, reach_goal_bonus: float, 
+    fall_dist: float, fall_penalty: float,
+    max_consecutive_successes: int, av_factor: float
+):
+    """
+    Compute the reward of all environment.
+
+    Args:
+        rew_buf (tensor): The reward buffer of all environments at this time
+
+        reset_buf (tensor): The reset buffer of all environments at this time
+
+        reset_goal_buf (tensor): The only-goal reset buffer of all environments at this time
+
+        progress_buf (tensor): The porgress buffer of all environments at this time
+
+        successes (tensor): The successes buffer of all environments at this time
+
+        consecutive_successes (tensor): The consecutive successes buffer of all environments at this time
+
+        max_episode_length (float): The max episode length in this environment
+
+        object_pos (tensor): The position of the object
+
+        object_rot (tensor): The rotation of the object
+
+        goal_right_pos (tensor): The position of the right goal
+
+        goal_left_pos (tensor): The position of the left goal
+
+        left_hand_pos, right_hand_pos (tensor): The position of the bimanual hands
+
+        dist_reward_scale (float): The scale of the distance reward
+
+        rot_reward_scale (float): The scale of the rotation reward
+
+        rot_eps (float): The epsilon of the rotation calculate
+
+        actions (tensor): The action buffer of all environments at this time
+
+        action_penalty_scale (float): The scale of the action penalty reward
+
+        success_tolerance (float): The tolerance of the success determined
+
+        reach_goal_bonus (float): The reward given when the object reaches the goal
+        
+        fall_dist (float): When the Shadowhand is far away from the target, it is judged as failing
+
+        fall_penalty (float): The reward given when the move is failed
+
+        max_consecutive_successes (float): The maximum of the consecutive successes
+
+        av_factor (float): The average factor for calculate the consecutive successes
+    """
+    # Distance from the hand to the object
+    left_hand_dist = torch.norm(left_hand_pos - goal_left_pos, p=2, dim=-1)
+    right_hand_dist = torch.norm(right_hand_pos - goal_right_pos, p=2, dim=-1)
+
+    right_hand_dist_rew = right_hand_dist * dist_reward_scale
+    left_hand_dist_rew = left_hand_dist * dist_reward_scale
+
+    # rot_rew = 1.0/(torch.abs(rot_dist) + rot_eps) * rot_reward_scale
+
+    action_penalty = torch.sum(actions ** 2, dim=-1)
+
+    # dist too far, fall penalty
+    fail_status = torch.where(torch.logical_or(left_hand_dist > fall_dist, right_hand_dist > fall_dist), 
+        torch.ones_like(reset_buf), torch.zeros_like(reset_buf))
+
+    # Find out which envs hit the goal and update successes count and reward
+    successes = torch.where(torch.logical_and(left_hand_dist < 0.1, right_hand_dist < 0.1), torch.ones_like(successes), successes)
+
+    # Total reward is: position distance + orientation alignment + action regularization + success bonus + fall penalty
+    # reward = torch.exp(-0.1*(right_hand_dist_rew * dist_reward_scale)) + torch.exp(-0.1*(left_hand_dist_rew * dist_reward_scale))
+    reward = right_hand_dist_rew + left_hand_dist_rew
+    reward = torch.where(successes > 0, torch.ones_like(reward) * reach_goal_bonus + reward, reward)
+    reward = torch.where(fail_status > 0, torch.ones_like(reward) * fall_penalty + reward, reward)
+
+    resets = torch.where(successes > 0, torch.ones_like(reset_buf), reset_buf)  # reset if success
+    resets = torch.where(progress_buf >= max_episode_length, torch.ones_like(resets), resets)  # reset if timeout
+    resets = torch.where(fail_status > 0, torch.ones_like(resets), resets)  # reset if fail
+
+    goal_resets = torch.zeros_like(resets)  # no goal resets
     cons_successes = torch.where(resets > 0, successes * resets, consecutive_successes).mean()
     
     return reward, resets, goal_resets, progress_buf, successes, cons_successes

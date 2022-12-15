@@ -139,3 +139,6 @@ bi_dexhands.egg-info
 
 # vscode
 .vscode
+
+# wandb
+wandb
