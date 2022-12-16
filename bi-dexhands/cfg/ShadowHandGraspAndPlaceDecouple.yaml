@@ -1,12 +1,12 @@
 # if given, will override the device setting in gym. 
 env: 
   env_name: "shadow_hand_grasp_and_place_decouple"
-  numEnvs: 128
+  numEnvs: 4096
   envSpacing: 1.5
   episodeLength: 500
   enableDebugVis: True
-  cameraDebug: True
-  pointCloudDebug: True
+  cameraDebug: False
+  pointCloudDebug: False
   aggregateMode: 1
 
   sub_task: "move"
@@ -26,18 +26,18 @@ env:
   resetDofPosRandomInterval: 0.0
   resetDofVelRandomInterval: 0.0
 
-  distRewardScale: -1.0
-  transition_scale: 0.5
-  orientation_scale: 0.1
-  rotRewardScale: 1.0
+  distRewardScale: -0.1
+  transition_scale: 1.0
+  orientation_scale: 0.2
+  rotRewardScale: -0.1
   rotEps: 0.1
   actionPenaltyScale: -0.0002
-  reachGoalBonus: 250
-  fallDistance: 1.0
-  fallPenalty: -100.0
+  reachGoalBonus: 1000.0
+  fallDistance: 3.0
+  fallPenalty: -1000.0
 
   objectType: "pot" # can be block, egg or pen
-  observationType: "full_state" # point_cloud or full_state
+  observationType: "move" # point_cloud or full_state or move
   handAgentIndex: "[[0, 1, 2, 3, 4, 5]]"
   asymmetric_observations: False
   successTolerance: 0.1
