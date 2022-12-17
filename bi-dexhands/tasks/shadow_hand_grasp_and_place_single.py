@@ -48,16 +48,16 @@ class ShadowHandGraspAndPlaceSingle(BaseTask):
         headless (bool): Specifies whether to visualize during training
 
         agent_index (list): Specifies how to divide the agents of the hands, useful only when using a 
-            multi-agent algorithm. It contains two lists, representing the left hand and the right hand. 
+            multi-agent algorithm. It contains one list, representing the right hand. 
             Each list has six numbers from 0 to 5, representing the palm, middle finger, ring finger, 
             tail finger, index finger, and thumb. Each part can be combined arbitrarily, and if placed 
             in the same list, it means that it is divided into the same agent. The default setting is
-            [[[0, 1, 2, 3, 4, 5]], [[0, 1, 2, 3, 4, 5]]], which means that the two whole hands are 
+            [[[0, 1, 2, 3, 4, 5]]], which means that the two whole hands are 
             regarded as one agent respectively.
 
         is_multi_agent (bool): Specifies whether it is a multi-agent environment
     """
-    def __init__(self, cfg, sim_params, physics_engine, device_type, device_id, headless, agent_index=[[[0, 1, 2, 3, 4, 5]], [[0, 1, 2, 3, 4, 5]]], is_multi_agent=False):
+    def __init__(self, cfg, sim_params, physics_engine, device_type, device_id, headless, agent_index=[[[0, 1, 2, 3, 4, 5]]], is_multi_agent=False):
         self.cfg = cfg
         self.sim_params = sim_params
         self.physics_engine = physics_engine
@@ -209,7 +209,7 @@ class ShadowHandGraspAndPlaceSingle(BaseTask):
         self.shadow_hand_dof_pos = self.shadow_hand_dof_state[..., 0]
         self.shadow_hand_dof_vel = self.shadow_hand_dof_state[..., 1]
 
-        self.object_dof_state = self.dof_state.view(self.num_envs, -1, 2)[:, self.num_shadow_hand_dofs*2:self.num_shadow_hand_dofs*2 + self.num_object_dofs]
+        self.object_dof_state = self.dof_state.view(self.num_envs, -1, 2)[:, self.num_shadow_hand_dofs:self.num_shadow_hand_dofs + self.num_object_dofs]
         self.object_dof_pos = self.object_dof_state[..., 0]
 
         self.rigid_body_states = gymtorch.wrap_tensor(rigid_body_tensor).view(self.num_envs, -1, 13)
@@ -278,7 +278,6 @@ class ShadowHandGraspAndPlaceSingle(BaseTask):
 
         asset_root = "../../assets"
         shadow_hand_asset_file = "mjcf/open_ai_assets/hand/shadow_hand.xml"
-        shadow_hand_another_asset_file = "mjcf/open_ai_assets/hand/shadow_hand1.xml"
         table_texture_files = "../assets/textures/texture_stone_stone_texture_0.jpg"
         table_texture_handle = self.gym.create_texture_from_file(self.sim, table_texture_files)
 
@@ -303,7 +302,6 @@ class ShadowHandGraspAndPlaceSingle(BaseTask):
         asset_options.default_dof_drive_mode = gymapi.DOF_MODE_NONE
 
         shadow_hand_asset = self.gym.load_asset(self.sim, asset_root, shadow_hand_asset_file, asset_options)
-        shadow_hand_another_asset = self.gym.load_asset(self.sim, asset_root, shadow_hand_another_asset_file, asset_options)
 
         self.num_shadow_hand_bodies = self.gym.get_asset_rigid_body_count(shadow_hand_asset)
         self.num_shadow_hand_shapes = self.gym.get_asset_rigid_shape_count(shadow_hand_asset)
@@ -335,7 +333,6 @@ class ShadowHandGraspAndPlaceSingle(BaseTask):
 
         # set shadow_hand dof properties
         shadow_hand_dof_props = self.gym.get_asset_dof_properties(shadow_hand_asset)
-        shadow_hand_another_dof_props = self.gym.get_asset_dof_properties(shadow_hand_another_asset)
 
         self.shadow_hand_dof_lower_limits = []
         self.shadow_hand_dof_upper_limits = []
@@ -448,7 +445,6 @@ class ShadowHandGraspAndPlaceSingle(BaseTask):
         self.hand_start_states = []
 
         self.hand_indices = []
-        self.another_hand_indices = []
         self.fingertip_indices = []
         self.object_indices = []
         self.goal_object_indices = []
@@ -627,6 +623,8 @@ class ShadowHandGraspAndPlaceSingle(BaseTask):
                 self.fall_dist, self.fall_penalty,
                 self.max_consecutive_successes, self.av_factor
             )
+        elif self.sub_task == "move":
+            pass
         else:
             print("Error: sub_task is not defined!")
             assert(False)
@@ -679,11 +677,13 @@ class ShadowHandGraspAndPlaceSingle(BaseTask):
         self.block_left_handle_pos = self.block_left_handle_pos + quat_apply(self.block_left_handle_rot, to_torch([1, 0, 0], device=self.device).repeat(self.num_envs, 1) * 0.0)
         self.block_left_handle_pos = self.block_left_handle_pos + quat_apply(self.block_left_handle_rot, to_torch([0, 0, 1], device=self.device).repeat(self.num_envs, 1) * 0.0)
 
+        # palm
         self.right_hand_pos = self.rigid_body_states[:, 3, 0:3]
         self.right_hand_rot = self.rigid_body_states[:, 3, 3:7]
         self.right_hand_pos = self.right_hand_pos + quat_apply(self.right_hand_rot, to_torch([0, 0, 1], device=self.device).repeat(self.num_envs, 1) * 0.08)
         self.right_hand_pos = self.right_hand_pos + quat_apply(self.right_hand_rot, to_torch([0, 1, 0], device=self.device).repeat(self.num_envs, 1) * -0.02)
 
+        # wrist
         self.right_wrist_pos = self.rigid_body_states[:, 1, 0:3]
         self.right_wrist_rot = self.rigid_body_states[:, 1, 3:7]
         self.right_wrist_pos = self.right_wrist_pos + quat_apply(self.right_wrist_rot, to_torch([0, 0, 1], device=self.device).repeat(self.num_envs, 1) * 0.3)
@@ -715,8 +715,6 @@ class ShadowHandGraspAndPlaceSingle(BaseTask):
             self.compute_full_state()
         elif self.obs_type == "point_cloud":
             self.compute_point_cloud_observation()
-        elif self.obs_type == "move":
-            self.compute_move_state()
         if self.asymmetric_obs:
             self.compute_full_state(True)
 
@@ -965,7 +963,6 @@ class ShadowHandGraspAndPlaceSingle(BaseTask):
         pos = self.shadow_hand_default_dof_pos + self.reset_dof_pos_noise * rand_delta
 
         self.shadow_hand_dof_pos[env_ids, :] = pos
-
         self.shadow_hand_dof_vel[env_ids, :] = self.shadow_hand_dof_default_vel + \
             self.reset_dof_vel_noise * rand_floats[:, 5+self.num_shadow_hand_dofs:5+self.num_shadow_hand_dofs*2]   
 
@@ -973,7 +970,6 @@ class ShadowHandGraspAndPlaceSingle(BaseTask):
         self.cur_targets[env_ids, :self.num_shadow_hand_dofs] = pos
 
         hand_indices = self.hand_indices[env_ids].to(torch.int32)
-
         all_hand_indices = torch.unique(hand_indices)
 
         self.gym.set_dof_position_target_tensor_indexed(self.sim,
@@ -1009,9 +1005,6 @@ class ShadowHandGraspAndPlaceSingle(BaseTask):
         0 - 19 	right shadow hand actuated joint
         20 - 22	right shadow hand base translation
         23 - 25	right shadow hand base rotation
-        26 - 45	left shadow hand actuated joint
-        46 - 48	left shadow hand base translation
-        49 - 51	left shadow hand base rotatio
 
         Args:
             actions (tensor): Actions of agents in the all environment 
@@ -1041,9 +1034,6 @@ class ShadowHandGraspAndPlaceSingle(BaseTask):
                                                                                                         self.actuated_dof_indices] + (1.0 - self.act_moving_average) * self.prev_targets[:, self.actuated_dof_indices]
             self.cur_targets[:, self.actuated_dof_indices] = tensor_clamp(self.cur_targets[:, self.actuated_dof_indices],
                                                                           self.shadow_hand_dof_lower_limits[self.actuated_dof_indices], self.shadow_hand_dof_upper_limits[self.actuated_dof_indices])
-            # self.cur_targets[:, 49] = scale(self.actions[:, 0],
-            #                                 self.object_dof_lower_limits[1], self.object_dof_upper_limits[1])
-            # angle_offsets = self.actions[:, 26:32] * self.dt * self.orientation_scale
             
             # direct PID control
             if self.sub_task == "move":
@@ -1053,7 +1043,7 @@ class ShadowHandGraspAndPlaceSingle(BaseTask):
                 right_torque = pid_control_rotation(self.goal_right_move[:, 3:7], self.right_wrist_rot, 10.0)
                 right_torque = torch.clamp(right_torque, -1.0, 1.0)
                 self.apply_torque[:, 1, :] = right_torque * self.dt * self.orientation_scale * 1000
-            if self.sub_task == "grasp":
+            elif self.sub_task == "grasp":
                 pass 
             else:
                 print("sub_task is not defined!")
@@ -1062,7 +1052,6 @@ class ShadowHandGraspAndPlaceSingle(BaseTask):
             self.gym.apply_rigid_body_force_tensors(self.sim, gymtorch.unwrap_tensor(self.apply_forces), gymtorch.unwrap_tensor(self.apply_torque), gymapi.ENV_SPACE)
 
         self.prev_targets[:, self.actuated_dof_indices] = self.cur_targets[:, self.actuated_dof_indices]
-
         # self.prev_targets[:, 49] = self.cur_targets[:, 49]
         # self.gym.set_dof_position_target_tensor(self.sim, gymtorch.unwrap_tensor(self.cur_targets))
         all_hand_indices = torch.unique(self.hand_indices).to(torch.int32)
