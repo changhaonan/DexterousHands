@@ -29,7 +29,7 @@ env:
   distRewardScale: -0.1
   transition_scale: 1.0
   orientation_scale: 0.2
-  rotRewardScale: -0.1
+  rotRewardScale: 0.1
   rotEps: 0.1
   actionPenaltyScale: -0.0002
   reachGoalBonus: 1000.0

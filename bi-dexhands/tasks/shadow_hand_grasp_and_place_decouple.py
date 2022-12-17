@@ -16,6 +16,7 @@ import torch
 
 from utils.torch_jit_utils import *
 from utils.drawing_utils import *
+from utils.control_utils import *
 from tasks.hand_base.base_task import BaseTask
 from isaacgym import gymtorch
 from isaacgym import gymapi
@@ -636,6 +637,8 @@ class ShadowHandGraspAndPlaceDecouple(BaseTask):
         self.goal_right_move = self.goal_states.clone()
         self.right_hand_pos = torch.zeros(self.num_envs, 3, device=self.device, dtype=torch.float)
         self.left_hand_pos = torch.zeros(self.num_envs, 3, device=self.device, dtype=torch.float)
+        self.right_hand_rot = torch.zeros(self.num_envs, 4, device=self.device, dtype=torch.float)
+        self.left_hand_rot = torch.zeros(self.num_envs, 4, device=self.device, dtype=torch.float)
 
         self.fingertip_handles = to_torch(self.fingertip_handles, dtype=torch.long, device=self.device)
         self.fingertip_another_handles = to_torch(self.fingertip_another_handles, dtype=torch.long, device=self.device)
@@ -1109,7 +1112,7 @@ class ShadowHandGraspAndPlaceDecouple(BaseTask):
             when the same task wants to complete multiple goals
 
         """
-        rand_floats = torch_rand_float(-1.0, 1.0, (len(env_ids), 8), device=self.device)
+        rand_floats = torch_rand_float(-1.0, 1.0, (len(env_ids), 16), device=self.device)
 
         new_rot = randomize_rotation(rand_floats[:, 0], rand_floats[:, 1], self.x_unit_tensor[env_ids], self.y_unit_tensor[env_ids])
 
@@ -1134,11 +1137,17 @@ class ShadowHandGraspAndPlaceDecouple(BaseTask):
             right_lower_limit = torch.tensor([0.2, 0.0, 0.7], device=self.device, dtype=torch.float)
             self.goal_right_move[env_ids, :3] = scale(rand_floats[:, 2:5], right_lower_limit, right_upper_limit)
             self.goal_right_move[env_ids, 3:7] = self.saved_rigid_body_states[env_ids, 3, 3:7]
+            # apply rot disturb
+            right_rot_disturb = torch.nn.functional.normalize(rand_floats[:, 5:9] , dim=1) 
+            self.goal_right_move[env_ids, 3:7] = quat_mul(self.goal_right_move[env_ids, 3:7], right_rot_disturb)
 
             left_upper_limit = torch.tensor([0.3, 0.0, 1.0], device=self.device, dtype=torch.float)
             left_lower_limit = torch.tensor([0.2, -0.3, 0.7], device=self.device, dtype=torch.float)
-            self.goal_left_move[env_ids, :3] = scale(rand_floats[:, 5:8], left_lower_limit, left_upper_limit)
+            self.goal_left_move[env_ids, :3] = scale(rand_floats[:, 9:12], left_lower_limit, left_upper_limit)
             self.goal_left_move[env_ids, 3:7] = self.saved_rigid_body_states[env_ids, 3 + 26, 3:7]
+            # apply rot disturb
+            left_rot_disturb = torch.nn.functional.normalize(rand_floats[:, 12:16] , dim=1) 
+            self.goal_left_move[env_ids, 3:7] = quat_mul(self.goal_left_move[env_ids, 3:7], left_rot_disturb)
 
         self.reset_goal_buf[env_ids] = 0
 
@@ -1289,13 +1298,17 @@ class ShadowHandGraspAndPlaceDecouple(BaseTask):
             if self.sub_task == "move":
                 right_goal_diff = self.goal_right_move[:, :3] - self.right_hand_pos
                 self.apply_forces[:, 1, :] = torch.nn.functional.normalize(right_goal_diff, dim=1) * self.dt * self.transition_scale * 100000
+                right_torque = pid_control_rotation(self.goal_right_move[:, 3:7], self.right_hand_rot, 10.0)
+                self.apply_torque[:, 1, :] = right_torque * self.dt * self.orientation_scale * 1000
                 left_goal_diff = self.goal_left_move[:, :3] - self.left_hand_pos
                 self.apply_forces[:, 1 + 26, :] = torch.nn.functional.normalize(left_goal_diff, dim=1) * self.dt * self.transition_scale * 100000
+                left_torque = pid_control_rotation(self.goal_left_move[:, 3:7], self.left_hand_rot, 10.0)
+                self.apply_torque[:, 1 + 26, :] = left_torque * self.dt * self.orientation_scale * 1000
             else:
                 self.apply_forces[:, 1, :] = actions[:, 0:3] * self.dt * self.transition_scale * 100000
                 self.apply_forces[:, 1 + 26, :] = actions[:, 26:29] * self.dt * self.transition_scale * 100000
-            self.apply_torque[:, 1, :] = self.actions[:, 3:6] * self.dt * self.orientation_scale * 1000
-            self.apply_torque[:, 1 + 26, :] = self.actions[:, 29:32] * self.dt * self.orientation_scale * 1000   
+                self.apply_torque[:, 1, :] = self.actions[:, 3:6] * self.dt * self.orientation_scale * 1000
+                self.apply_torque[:, 1 + 26, :] = self.actions[:, 29:32] * self.dt * self.orientation_scale * 1000   
 
             self.gym.apply_rigid_body_force_tensors(self.sim, gymtorch.unwrap_tensor(self.apply_forces), gymtorch.unwrap_tensor(self.apply_torque), gymapi.ENV_SPACE)
 
@@ -1638,9 +1651,6 @@ def compute_hand_move_reward(
     left_hand_dist = torch.norm(left_hand_pos - goal_left_pos, p=2, dim=-1)
     right_hand_dist = torch.norm(right_hand_pos - goal_right_pos, p=2, dim=-1)
 
-    right_hand_dist_rew = (torch.clamp(right_hand_dist, min=reach_tolerance) / reach_tolerance - 2.0) * dist_reward_scale
-    left_hand_dist_rew = (torch.clamp(left_hand_dist, min=reach_tolerance) / reach_tolerance - 2.0) * dist_reward_scale
-
     left_quat_diff = quat_mul(left_hand_rot, quat_conjugate(goal_left_rot))
     left_rot_dist = 2.0 * torch.asin(torch.clamp(torch.norm(left_quat_diff[:, 0:3], p=2, dim=-1), max=1.0))
     left_rot_rew = 1.0/(torch.abs(left_rot_dist) + rot_eps) * rot_reward_scale
@@ -1656,16 +1666,19 @@ def compute_hand_move_reward(
         torch.ones_like(reset_buf), torch.zeros_like(reset_buf))
 
     # Find out which envs hit the goal and update successes count and reward
-    successes = torch.where(torch.logical_and(left_hand_dist < reach_tolerance, right_hand_dist < reach_tolerance), torch.ones_like(successes), successes)
+    successes = torch.where(
+            torch.logical_and(
+                torch.logical_and(left_rot_dist < reach_tolerance, right_rot_dist < reach_tolerance),
+                torch.logical_and(left_hand_dist < reach_tolerance, right_hand_dist < reach_tolerance),
+            ), torch.ones_like(successes), successes)
 
-    # Total reward is: position distance + orientation alignment + action regularization + success bonus + fall penalty
-    # reward = torch.exp(-0.1*(right_hand_dist_rew * dist_reward_scale)) + torch.exp(-0.1*(left_hand_dist_rew * dist_reward_scale))
-    reward = right_hand_dist_rew + left_hand_dist_rew + left_rot_rew + right_rot_rew + action_penalty * action_penalty_scale
+    # The motion is handled by PID, left the rotation to be processed by rl
+    reward = left_rot_rew + right_rot_rew + action_penalty * action_penalty_scale
     reward = torch.where(successes > 0, torch.ones_like(reward) * reach_goal_bonus + reward, reward)
     reward = torch.where(fail_status > 0, torch.ones_like(reward) * fall_penalty + reward, reward)
 
-    resets = torch.where(successes > 0, torch.ones_like(reset_buf), reset_buf)  # reset if success
-    resets = torch.where(progress_buf >= max_episode_length, torch.ones_like(resets), resets)  # reset if timeout
+    # resets = torch.where(successes > 0, torch.ones_like(reset_buf), reset_buf)  # reset if success
+    resets = torch.where(progress_buf >= max_episode_length, torch.ones_like(reset_buf), reset_buf)  # reset if timeout
     resets = torch.where(fail_status > 0, torch.ones_like(resets), resets)  # reset if fail
     print("====================================")
     for i in range(4):
