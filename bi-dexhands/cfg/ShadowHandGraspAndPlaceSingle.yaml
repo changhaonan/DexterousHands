@@ -1,6 +1,6 @@
 # if given, will override the device setting in gym. 
 env: 
-  env_name: "shadow_hand_grasp_and_place_decouple"
+  env_name: "shadow_hand_grasp_and_place_single"
   numEnvs: 4096
   envSpacing: 1.5
   episodeLength: 500
@@ -9,7 +9,7 @@ env:
   pointCloudDebug: False
   aggregateMode: 1
 
-  sub_task: "move"  # move, grasp or put
+  sub_task: "grasp"  # move, grasp or release
 
   stiffnessScale: 1.0
   forceLimitScale: 1.0
@@ -37,7 +37,7 @@ env:
   fallPenalty: -1000.0
 
   objectType: "pot"  # can be block, egg or pen
-  observationType: "move"  # point_cloud or full_state or absolute_pos or relative_pos
+  observationType: "full_state"  # point_cloud or full_state or absolute_pos or relative_pos
   actionType: ""  # full, hand_only, wrist_only  
   handAgentIndex: "[[0, 1, 2, 3, 4, 5]]"
   asymmetric_observations: False
