@@ -635,12 +635,10 @@ class ShadowHandGraspAndPlaceDecouple(BaseTask):
         # init for move
         self.goal_left_move  = self.goal_states.clone()
         self.goal_right_move = self.goal_states.clone()
-        self.right_hand_pos = torch.zeros(self.num_envs, 3, device=self.device, dtype=torch.float)
-        self.left_hand_pos = torch.zeros(self.num_envs, 3, device=self.device, dtype=torch.float)
-        self.last_right_hand_diff = torch.zeros(self.num_envs, 3, device=self.device, dtype=torch.float)
-        self.last_left_hand_diff = torch.zeros(self.num_envs, 3, device=self.device, dtype=torch.float)
-        self.right_hand_rot = torch.zeros(self.num_envs, 4, device=self.device, dtype=torch.float)
-        self.left_hand_rot = torch.zeros(self.num_envs, 4, device=self.device, dtype=torch.float)
+        self.right_wrist_pos = torch.zeros(self.num_envs, 3, device=self.device, dtype=torch.float)
+        self.left_wrist_pos = torch.zeros(self.num_envs, 3, device=self.device, dtype=torch.float)
+        self.right_wrist_rot = torch.zeros(self.num_envs, 4, device=self.device, dtype=torch.float)
+        self.left_wrist_rot = torch.zeros(self.num_envs, 4, device=self.device, dtype=torch.float)
 
         self.fingertip_handles = to_torch(self.fingertip_handles, dtype=torch.long, device=self.device)
         self.fingertip_another_handles = to_torch(self.fingertip_another_handles, dtype=torch.long, device=self.device)
@@ -748,6 +746,14 @@ class ShadowHandGraspAndPlaceDecouple(BaseTask):
         self.right_hand_pos = self.right_hand_pos + quat_apply(self.right_hand_rot, to_torch([0, 0, 1], device=self.device).repeat(self.num_envs, 1) * 0.08)
         self.right_hand_pos = self.right_hand_pos + quat_apply(self.right_hand_rot, to_torch([0, 1, 0], device=self.device).repeat(self.num_envs, 1) * -0.02)
 
+        self.left_wrist_pos = self.rigid_body_states[:, 1 + 26, 0:3]
+        self.left_wrist_rot = self.rigid_body_states[:, 1 + 26, 3:7]
+        self.left_wrist_pos = self.left_wrist_pos + quat_apply(self.left_wrist_rot, to_torch([0, 0, 1], device=self.device).repeat(self.num_envs, 1) * 0.3)
+
+        self.right_wrist_pos = self.rigid_body_states[:, 1, 0:3]
+        self.right_wrist_rot = self.rigid_body_states[:, 1, 3:7]
+        self.right_wrist_pos = self.right_wrist_pos + quat_apply(self.right_wrist_rot, to_torch([0, 0, 1], device=self.device).repeat(self.num_envs, 1) * 0.3)
+        
         # right hand finger
         self.right_hand_ff_pos = self.rigid_body_states[:, 7, 0:3]
         self.right_hand_ff_rot = self.rigid_body_states[:, 7, 3:7]
@@ -1298,18 +1304,16 @@ class ShadowHandGraspAndPlaceDecouple(BaseTask):
             
             # direct PID control
             if self.sub_task == "move":
-                right_force = pid_control_transition(self.goal_right_move[:, :3], self.right_hand_pos, 10.0)
+                right_force = pid_control_transition(self.goal_right_move[:, :3], self.right_wrist_pos, 10.0)
                 right_force = torch.clamp(right_force, -1.0, 1.0)
-                self.last_right_hand_diff = self.goal_right_move[:, :3] - self.right_hand_pos
                 self.apply_forces[:, 1, :] = right_force * self.dt * self.transition_scale * 100000
-                right_torque = pid_control_rotation(self.goal_right_move[:, 3:7], self.right_hand_rot, 10.0)
+                right_torque = pid_control_rotation(self.goal_right_move[:, 3:7], self.right_wrist_rot, 10.0)
                 right_torque = torch.clamp(right_torque, -1.0, 1.0)
                 self.apply_torque[:, 1, :] = right_torque * self.dt * self.orientation_scale * 1000
-                left_force = pid_control_transition(self.goal_left_move[:, :3], self.left_hand_pos, 10.0)
+                left_force = pid_control_transition(self.goal_left_move[:, :3], self.left_wrist_pos, 10.0)
                 left_force = torch.clamp(left_force, -1.0, 1.0)
-                self.last_left_hand_diff = self.goal_left_move[:, :3] - self.left_hand_pos
                 self.apply_forces[:, 1 + 26, :] = left_force * self.dt * self.transition_scale * 100000
-                left_torque = pid_control_rotation(self.goal_left_move[:, 3:7], self.left_hand_rot, 10.0)
+                left_torque = pid_control_rotation(self.goal_left_move[:, 3:7], self.left_wrist_rot, 10.0)
                 left_torque = torch.clamp(left_torque, -1.0, 1.0)
                 self.apply_torque[:, 1 + 26, :] = left_torque * self.dt * self.orientation_scale * 1000
             else:
@@ -1354,8 +1358,8 @@ class ShadowHandGraspAndPlaceDecouple(BaseTask):
                     draw_6D_pose(self.gym, self.viewer, self.envs[i], self.goal_left_move[i, :3], self.goal_left_move[i, 3:7], color=(0, 0, 1))
                     draw_6D_pose(self.gym, self.viewer, self.envs[i], self.goal_right_move[i, :3], self.goal_right_move[i, 3:7], color=(0, 1, 0))
                     # hand
-                    self.add_debug_lines(self.envs[i], self.left_hand_pos[i], self.left_hand_rot[i])
-                    self.add_debug_lines(self.envs[i], self.right_hand_pos[i], self.right_hand_rot[i])
+                    self.add_debug_lines(self.envs[i], self.left_wrist_pos[i], self.left_wrist_rot[i])
+                    self.add_debug_lines(self.envs[i], self.right_wrist_pos[i], self.right_wrist_rot[i])
                 else:
                     self.add_debug_lines(self.envs[i], self.block_right_handle_pos[i], self.block_right_handle_rot[i])
                     self.add_debug_lines(self.envs[i], self.block_left_handle_pos[i], self.block_left_handle_rot[i])
