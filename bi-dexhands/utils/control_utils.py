@@ -17,3 +17,6 @@ def pid_control_rotation(target_rot, current_rot, kp):
     torque = torch.hstack([axis_x, axis_y, axis_z]) * angle
 
     return - kp * torque
+
+def pid_control_transition(target_pos, current_pos, kp):
+    return - kp * (current_pos - target_pos)

@@ -637,6 +637,8 @@ class ShadowHandGraspAndPlaceDecouple(BaseTask):
         self.goal_right_move = self.goal_states.clone()
         self.right_hand_pos = torch.zeros(self.num_envs, 3, device=self.device, dtype=torch.float)
         self.left_hand_pos = torch.zeros(self.num_envs, 3, device=self.device, dtype=torch.float)
+        self.last_right_hand_diff = torch.zeros(self.num_envs, 3, device=self.device, dtype=torch.float)
+        self.last_left_hand_diff = torch.zeros(self.num_envs, 3, device=self.device, dtype=torch.float)
         self.right_hand_rot = torch.zeros(self.num_envs, 4, device=self.device, dtype=torch.float)
         self.left_hand_rot = torch.zeros(self.num_envs, 4, device=self.device, dtype=torch.float)
 
@@ -1134,7 +1136,7 @@ class ShadowHandGraspAndPlaceDecouple(BaseTask):
         if self.sub_task == "move":
             # right range 
             right_upper_limit = torch.tensor([0.3, 0.3, 1.0], device=self.device, dtype=torch.float)
-            right_lower_limit = torch.tensor([0.2, 0.0, 0.7], device=self.device, dtype=torch.float)
+            right_lower_limit = torch.tensor([-0.3, 0.0, 0.7], device=self.device, dtype=torch.float)
             self.goal_right_move[env_ids, :3] = scale(rand_floats[:, 2:5], right_lower_limit, right_upper_limit)
             self.goal_right_move[env_ids, 3:7] = self.saved_rigid_body_states[env_ids, 3, 3:7]
             # apply rot disturb
@@ -1142,7 +1144,7 @@ class ShadowHandGraspAndPlaceDecouple(BaseTask):
             self.goal_right_move[env_ids, 3:7] = quat_mul(self.goal_right_move[env_ids, 3:7], right_rot_disturb)
 
             left_upper_limit = torch.tensor([0.3, 0.0, 1.0], device=self.device, dtype=torch.float)
-            left_lower_limit = torch.tensor([0.2, -0.3, 0.7], device=self.device, dtype=torch.float)
+            left_lower_limit = torch.tensor([-0.3, -0.3, 0.7], device=self.device, dtype=torch.float)
             self.goal_left_move[env_ids, :3] = scale(rand_floats[:, 9:12], left_lower_limit, left_upper_limit)
             self.goal_left_move[env_ids, 3:7] = self.saved_rigid_body_states[env_ids, 3 + 26, 3:7]
             # apply rot disturb
@@ -1296,13 +1298,19 @@ class ShadowHandGraspAndPlaceDecouple(BaseTask):
             
             # direct PID control
             if self.sub_task == "move":
-                right_goal_diff = self.goal_right_move[:, :3] - self.right_hand_pos
-                self.apply_forces[:, 1, :] = torch.nn.functional.normalize(right_goal_diff, dim=1) * self.dt * self.transition_scale * 100000
+                right_force = pid_control_transition(self.goal_right_move[:, :3], self.right_hand_pos, 10.0)
+                right_force = torch.clamp(right_force, -1.0, 1.0)
+                self.last_right_hand_diff = self.goal_right_move[:, :3] - self.right_hand_pos
+                self.apply_forces[:, 1, :] = right_force * self.dt * self.transition_scale * 100000
                 right_torque = pid_control_rotation(self.goal_right_move[:, 3:7], self.right_hand_rot, 10.0)
+                right_torque = torch.clamp(right_torque, -1.0, 1.0)
                 self.apply_torque[:, 1, :] = right_torque * self.dt * self.orientation_scale * 1000
-                left_goal_diff = self.goal_left_move[:, :3] - self.left_hand_pos
-                self.apply_forces[:, 1 + 26, :] = torch.nn.functional.normalize(left_goal_diff, dim=1) * self.dt * self.transition_scale * 100000
+                left_force = pid_control_transition(self.goal_left_move[:, :3], self.left_hand_pos, 10.0)
+                left_force = torch.clamp(left_force, -1.0, 1.0)
+                self.last_left_hand_diff = self.goal_left_move[:, :3] - self.left_hand_pos
+                self.apply_forces[:, 1 + 26, :] = left_force * self.dt * self.transition_scale * 100000
                 left_torque = pid_control_rotation(self.goal_left_move[:, 3:7], self.left_hand_rot, 10.0)
+                left_torque = torch.clamp(left_torque, -1.0, 1.0)
                 self.apply_torque[:, 1 + 26, :] = left_torque * self.dt * self.orientation_scale * 1000
             else:
                 self.apply_forces[:, 1, :] = actions[:, 0:3] * self.dt * self.transition_scale * 100000
