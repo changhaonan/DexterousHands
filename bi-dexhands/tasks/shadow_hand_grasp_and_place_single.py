@@ -940,8 +940,8 @@ class ShadowHandGraspAndPlaceSingle(BaseTask):
         if self.action_type == "hand_only" and self.sub_task == "grasp":
             left_block_pos = self.saved_rigid_body_states[:, 26 + 2, 0:3]
             # right range 
-            right_upper_limit = torch.tensor([0.15, 0.03, 0.15], device=self.device, dtype=torch.float)
-            right_lower_limit = torch.tensor([0.05, -0.03, 0.1], device=self.device, dtype=torch.float)
+            right_upper_limit = torch.tensor([0.10, 0.03, 0.1], device=self.device, dtype=torch.float)
+            right_lower_limit = torch.tensor([0.05, -0.03, 0.08], device=self.device, dtype=torch.float)
             self.goal_right_move[env_ids, :3] = scale(rand_floats[:, 2:5], right_lower_limit, right_upper_limit) + left_block_pos
             self.goal_right_move[env_ids, 3:7] = self.saved_rigid_body_states[env_ids, 3, 3:7]
             # apply rot disturb
@@ -1304,7 +1304,7 @@ def compute_hand_grasp_reward(
     resets = torch.where(progress_buf >= max_episode_length, torch.ones_like(reset_buf), reset_buf)  # reset if timeout
     resets = torch.where(fail_status > 0, torch.ones_like(resets), resets)  # reset if fail
     print("====================================")
-    for i in range(4):
+    for i in range(10):
         print(f"successes: {successes[i]}, resets: {resets[i]}, right_hand_dist: {right_hand_dist[i]}, right_rot_dist: {right_rot_dist[i]}, reward: {reward[i]}")
     goal_resets = torch.zeros_like(resets)  # no goal resets
     cons_successes = torch.where(resets > 0, successes * resets, consecutive_successes).mean()
