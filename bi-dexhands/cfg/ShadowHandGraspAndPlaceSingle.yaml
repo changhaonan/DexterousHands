@@ -9,7 +9,7 @@ env:
   pointCloudDebug: False
   aggregateMode: 1
 
-  sub_task: "move"  # move, grasp or release
+  sub_task: "grasp"  # move, grasp or release
 
   stiffnessScale: 1.0
   forceLimitScale: 1.0

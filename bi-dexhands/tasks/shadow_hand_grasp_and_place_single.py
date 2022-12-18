@@ -129,12 +129,6 @@ class ShadowHandGraspAndPlaceSingle(BaseTask):
             self.asset_files_dict["pen"] = self.cfg["env"]["asset"].get("assetFileNamePen", self.asset_files_dict["pen"])
 
         self.action_type = self.cfg["env"]["actionType"]
-        if self.action_type == "wrist_only":
-            self.position_coord = "world"
-        elif self.action_type == "hand_only":
-            self.position_coord = "wrist_pos_only"
-        else:
-            self.position_coord = "world"
 
         # can be "openai", "full_no_vel", "full", "full_state"
         self.obs_type = self.cfg["env"]["observationType"]
@@ -149,7 +143,7 @@ class ShadowHandGraspAndPlaceSingle(BaseTask):
         self.num_obs_dict = {
             "point_cloud": 226 + self.num_point_cloud_feature_dim * 3,
             "point_cloud_for_distill": 226 + self.num_point_cloud_feature_dim * 3,
-            "full_state": 226
+            "full_state": 220 if (self.action_type == "hand_only") else 226
         }
         self.num_hand_obs = 72 + 95 + 26 + 6
         self.up_axis = 'z'
@@ -169,7 +163,12 @@ class ShadowHandGraspAndPlaceSingle(BaseTask):
         self.cfg["env"]["numStates"] = num_states
         
         self.num_agents = 1
-        self.cfg["env"]["numActions"] = 26
+        if self.action_type == "wrist_only":
+            self.cfg["env"]["numActions"] = 6
+        elif self.action_type == "hand_only":
+            self.cfg["env"]["numActions"] = 20
+        else:
+            self.cfg["env"]["numActions"] = 26
 
         self.cfg["device_type"] = device_type
         self.cfg["device_id"] = device_id
@@ -631,8 +630,6 @@ class ShadowHandGraspAndPlaceSingle(BaseTask):
                 self.fall_dist, self.fall_penalty,
                 self.max_consecutive_successes, self.av_factor
             )
-        elif self.sub_task == "move":
-            pass
         else:
             print("Error: sub_task is not defined!")
             assert(False)
@@ -760,7 +757,7 @@ class ShadowHandGraspAndPlaceSingle(BaseTask):
         self.obs_buf[:, 2*self.num_shadow_hand_dofs:3*self.num_shadow_hand_dofs] = self.force_torque_obs_scale * self.dof_force_tensor[:, :24]
 
         fingertip_obs_start = 72  # 168 = 157 + 11
-        if self.position_coord == "wrist_pos_only":
+        if self.action_type == "hand_only":
             _fingertip_state = self.fingertip_state.reshape(self.num_envs, self.num_fingertips, -1)
             _fingertip_state[:, :, 0:3] = _fingertip_state[:, :, 0:3] - self.right_wrist_pos[:, None, :].repeat(1, self.num_fingertips, 1)
             self.obs_buf[:, fingertip_obs_start:fingertip_obs_start + num_ft_states] = _fingertip_state.reshape(self.num_envs, num_ft_states)
@@ -772,7 +769,7 @@ class ShadowHandGraspAndPlaceSingle(BaseTask):
                         num_ft_force_torques] = self.force_torque_obs_scale * self.vec_sensor_tensor[:, :30]
             
         hand_pose_start = fingertip_obs_start + 95
-        if self.position_coord == "wrist_pos_only":
+        if self.action_type == "hand_only":
             self.obs_buf[:, hand_pose_start:hand_pose_start + 3] = self.right_hand_pos - self.right_wrist_pos
             self.obs_buf[:, hand_pose_start+3:hand_pose_start+4] = get_euler_xyz(self.hand_orientations[self.hand_indices, :])[0].unsqueeze(-1)
             self.obs_buf[:, hand_pose_start+4:hand_pose_start+5] = get_euler_xyz(self.hand_orientations[self.hand_indices, :])[1].unsqueeze(-1)
@@ -784,10 +781,14 @@ class ShadowHandGraspAndPlaceSingle(BaseTask):
             self.obs_buf[:, hand_pose_start+5:hand_pose_start+6] = get_euler_xyz(self.hand_orientations[self.hand_indices, :])[2].unsqueeze(-1)
 
         action_obs_start = hand_pose_start + 6
-        self.obs_buf[:, action_obs_start:action_obs_start + 26] = self.actions[:, :26]
+        if self.action_type == "hand_only":
+            self.obs_buf[:, action_obs_start:action_obs_start + 20] = self.actions[:, :20]
+            obj_obs_start = action_obs_start + 20  # 144
+        else:
+            self.obs_buf[:, action_obs_start:action_obs_start + 26] = self.actions[:, :26]
+            obj_obs_start = action_obs_start + 26  # 144
 
-        obj_obs_start = action_obs_start + 26  # 144
-        if self.position_coord == "wrist_pos_only":
+        if self.action_type == "hand_only":
             self.obs_buf[:, obj_obs_start:obj_obs_start + 3] = self.object_pos - self.right_wrist_pos
             self.obs_buf[:, obj_obs_start + 3:obj_obs_start + 7] = self.object_rot
             self.obs_buf[:, obj_obs_start + 7:obj_obs_start + 10] = self.object_linvel
@@ -936,15 +937,16 @@ class ShadowHandGraspAndPlaceSingle(BaseTask):
                                                          gymtorch.unwrap_tensor(self.root_state_tensor),
                                                          gymtorch.unwrap_tensor(goal_object_indices), len(env_ids))
         # move goal
-        if self.sub_task == "move":
+        if self.action_type == "hand_only" and self.sub_task == "grasp":
+            left_block_pos = self.saved_rigid_body_states[:, 26 + 2, 0:3]
             # right range 
-            right_upper_limit = torch.tensor([0.3, 0.3, 1.0], device=self.device, dtype=torch.float)
-            right_lower_limit = torch.tensor([-0.3, 0.0, 0.7], device=self.device, dtype=torch.float)
-            self.goal_right_move[env_ids, :3] = scale(rand_floats[:, 2:5], right_lower_limit, right_upper_limit)
+            right_upper_limit = torch.tensor([0.15, 0.03, 0.15], device=self.device, dtype=torch.float)
+            right_lower_limit = torch.tensor([0.05, -0.03, 0.1], device=self.device, dtype=torch.float)
+            self.goal_right_move[env_ids, :3] = scale(rand_floats[:, 2:5], right_lower_limit, right_upper_limit) + left_block_pos
             self.goal_right_move[env_ids, 3:7] = self.saved_rigid_body_states[env_ids, 3, 3:7]
             # apply rot disturb
-            right_rot_disturb = torch.nn.functional.normalize(rand_floats[:, 5:9] , dim=1) 
-            self.goal_right_move[env_ids, 3:7] = quat_mul(self.goal_right_move[env_ids, 3:7], right_rot_disturb)
+            # right_rot_disturb = torch.nn.functional.normalize(rand_floats[:, 5:9] , dim=1) 
+            # self.goal_right_move[env_ids, 3:7] = quat_mul(self.goal_right_move[env_ids, 3:7], right_rot_disturb)
         
         self.reset_goal_buf[env_ids] = 0
 
@@ -1034,9 +1036,9 @@ class ShadowHandGraspAndPlaceSingle(BaseTask):
         action space as shown in below:
         
         Index   Description
-        0 - 19 	right shadow hand actuated joint
-        20 - 22	right shadow hand base translation
-        23 - 25	right shadow hand base rotation
+        0 - 19 	right shadow hand actuated joint (Blocked when wrist_only)
+        20 - 22	right shadow hand base translation (Blocked when hand_only)
+        23 - 25	right shadow hand base rotation (Blocked when hand_only)
 
         Args:
             actions (tensor): Actions of agents in the all environment 
@@ -1060,27 +1062,27 @@ class ShadowHandGraspAndPlaceSingle(BaseTask):
             self.cur_targets[:, self.actuated_dof_indices] = tensor_clamp(targets,
                                                                           self.shadow_hand_dof_lower_limits[self.actuated_dof_indices], self.shadow_hand_dof_upper_limits[self.actuated_dof_indices])
         else:
-            self.cur_targets[:, self.actuated_dof_indices] = scale(self.actions[:, 6:26],
-                                                                   self.shadow_hand_dof_lower_limits[self.actuated_dof_indices], self.shadow_hand_dof_upper_limits[self.actuated_dof_indices])
-            self.cur_targets[:, self.actuated_dof_indices] = self.act_moving_average * self.cur_targets[:,
-                                                                                                        self.actuated_dof_indices] + (1.0 - self.act_moving_average) * self.prev_targets[:, self.actuated_dof_indices]
-            self.cur_targets[:, self.actuated_dof_indices] = tensor_clamp(self.cur_targets[:, self.actuated_dof_indices],
-                                                                          self.shadow_hand_dof_lower_limits[self.actuated_dof_indices], self.shadow_hand_dof_upper_limits[self.actuated_dof_indices])
-            
-            # direct PID control
-            if self.sub_task == "move":
+            if self.action_type == "hand_only":  # policy is hand only, use PID to control wrist
                 right_force = pid_control_transition(self.goal_right_move[:, :3], self.right_wrist_pos, 10.0)
                 right_force = torch.clamp(right_force, -1.0, 1.0)
                 self.apply_forces[:, 1, :] = right_force * self.dt * self.transition_scale * 100000
                 right_torque = pid_control_rotation(self.goal_right_move[:, 3:7], self.right_wrist_rot, 10.0)
                 right_torque = torch.clamp(right_torque, -1.0, 1.0)
                 self.apply_torque[:, 1, :] = right_torque * self.dt * self.orientation_scale * 1000
-            elif self.sub_task == "grasp":
-                pass 
+                self.cur_targets[:, self.actuated_dof_indices] = scale(self.actions[:, 0:20],
+                                                                    self.shadow_hand_dof_lower_limits[self.actuated_dof_indices], self.shadow_hand_dof_upper_limits[self.actuated_dof_indices])
+                self.cur_targets[:, self.actuated_dof_indices] = self.act_moving_average * self.cur_targets[:,
+                                                                                                            self.actuated_dof_indices] + (1.0 - self.act_moving_average) * self.prev_targets[:, self.actuated_dof_indices]
+                self.cur_targets[:, self.actuated_dof_indices] = tensor_clamp(self.cur_targets[:, self.actuated_dof_indices],
+                                                                            self.shadow_hand_dof_lower_limits[self.actuated_dof_indices], self.shadow_hand_dof_upper_limits[self.actuated_dof_indices])
             else:
-                print("sub_task is not defined!")
-                assert(False) 
-
+                self.cur_targets[:, self.actuated_dof_indices] = scale(self.actions[:, 6:26],
+                                                                    self.shadow_hand_dof_lower_limits[self.actuated_dof_indices], self.shadow_hand_dof_upper_limits[self.actuated_dof_indices])
+                self.cur_targets[:, self.actuated_dof_indices] = self.act_moving_average * self.cur_targets[:,
+                                                                                                            self.actuated_dof_indices] + (1.0 - self.act_moving_average) * self.prev_targets[:, self.actuated_dof_indices]
+                self.cur_targets[:, self.actuated_dof_indices] = tensor_clamp(self.cur_targets[:, self.actuated_dof_indices],
+                                                                            self.shadow_hand_dof_lower_limits[self.actuated_dof_indices], self.shadow_hand_dof_upper_limits[self.actuated_dof_indices])
+                
             self.gym.apply_rigid_body_force_tensors(self.sim, gymtorch.unwrap_tensor(self.apply_forces), gymtorch.unwrap_tensor(self.apply_torque), gymapi.ENV_SPACE)
 
         self.prev_targets[:, self.actuated_dof_indices] = self.cur_targets[:, self.actuated_dof_indices]
@@ -1109,7 +1111,7 @@ class ShadowHandGraspAndPlaceSingle(BaseTask):
             self.gym.refresh_rigid_body_state_tensor(self.sim)
 
             for i in range(self.num_envs):
-                if self.sub_task == "move":
+                if self.action_type == "hand_only":
                     # goal
                     draw_6D_pose(self.gym, self.viewer, self.envs[i], self.goal_right_move[i, :3], self.goal_right_move[i, 3:7], color=(0, 1, 0))
                     # hand
