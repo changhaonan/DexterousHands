@@ -127,14 +127,13 @@ class ShadowHandGraspAndPlaceDecouple(BaseTask):
             self.asset_files_dict["block"] = self.cfg["env"]["asset"].get("assetFileNameBlock", self.asset_files_dict["block"])
             self.asset_files_dict["egg"] = self.cfg["env"]["asset"].get("assetFileNameEgg", self.asset_files_dict["egg"])
             self.asset_files_dict["pen"] = self.cfg["env"]["asset"].get("assetFileNamePen", self.asset_files_dict["pen"])
-
+        
         # can be "openai", "full_no_vel", "full", "full_state"
         self.obs_type = self.cfg["env"]["observationType"]
 
-        if not (self.obs_type in ["point_cloud", "full_state", "absolute_pos", "relative_pos"]):
+        if not (self.obs_type in ["point_cloud", "full_state"]):
             raise Exception(
                 "Unknown type of observations!\nobservationType should be one of: [point_cloud, full_state]")
-
         print("Obs type:", self.obs_type)
 
         self.num_point_cloud_feature_dim = 768

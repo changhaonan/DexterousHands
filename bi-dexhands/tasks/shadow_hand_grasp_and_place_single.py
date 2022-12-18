@@ -128,6 +128,14 @@ class ShadowHandGraspAndPlaceSingle(BaseTask):
             self.asset_files_dict["egg"] = self.cfg["env"]["asset"].get("assetFileNameEgg", self.asset_files_dict["egg"])
             self.asset_files_dict["pen"] = self.cfg["env"]["asset"].get("assetFileNamePen", self.asset_files_dict["pen"])
 
+        self.action_type = self.cfg["env"]["actionType"]
+        if self.action_type == "wrist_only":
+            self.position_coord = "world"
+        elif self.action_type == "hand_only":
+            self.position_coord = "wrist_pos_only"
+        else:
+            self.position_coord = "world"
+
         # can be "openai", "full_no_vel", "full", "full_state"
         self.obs_type = self.cfg["env"]["observationType"]
 
@@ -752,27 +760,51 @@ class ShadowHandGraspAndPlaceSingle(BaseTask):
         self.obs_buf[:, 2*self.num_shadow_hand_dofs:3*self.num_shadow_hand_dofs] = self.force_torque_obs_scale * self.dof_force_tensor[:, :24]
 
         fingertip_obs_start = 72  # 168 = 157 + 11
-        self.obs_buf[:, fingertip_obs_start:fingertip_obs_start + num_ft_states] = self.fingertip_state.reshape(self.num_envs, num_ft_states)
-        self.obs_buf[:, fingertip_obs_start + num_ft_states:fingertip_obs_start + num_ft_states +
-                    num_ft_force_torques] = self.force_torque_obs_scale * self.vec_sensor_tensor[:, :30]
-        
+        if self.position_coord == "wrist_pos_only":
+            _fingertip_state = self.fingertip_state.reshape(self.num_envs, self.num_fingertips, -1)
+            _fingertip_state[:, :, 0:3] = _fingertip_state[:, :, 0:3] - self.right_wrist_pos[:, None, :].repeat(1, self.num_fingertips, 1)
+            self.obs_buf[:, fingertip_obs_start:fingertip_obs_start + num_ft_states] = _fingertip_state.reshape(self.num_envs, num_ft_states)
+            self.obs_buf[:, fingertip_obs_start + num_ft_states:fingertip_obs_start + num_ft_states +
+                        num_ft_force_torques] = self.force_torque_obs_scale * self.vec_sensor_tensor[:, :30]
+        else:
+            self.obs_buf[:, fingertip_obs_start:fingertip_obs_start + num_ft_states] = self.fingertip_state.reshape(self.num_envs, num_ft_states)
+            self.obs_buf[:, fingertip_obs_start + num_ft_states:fingertip_obs_start + num_ft_states +
+                        num_ft_force_torques] = self.force_torque_obs_scale * self.vec_sensor_tensor[:, :30]
+            
         hand_pose_start = fingertip_obs_start + 95
-        self.obs_buf[:, hand_pose_start:hand_pose_start + 3] = self.right_hand_pos
-        self.obs_buf[:, hand_pose_start+3:hand_pose_start+4] = get_euler_xyz(self.hand_orientations[self.hand_indices, :])[0].unsqueeze(-1)
-        self.obs_buf[:, hand_pose_start+4:hand_pose_start+5] = get_euler_xyz(self.hand_orientations[self.hand_indices, :])[1].unsqueeze(-1)
-        self.obs_buf[:, hand_pose_start+5:hand_pose_start+6] = get_euler_xyz(self.hand_orientations[self.hand_indices, :])[2].unsqueeze(-1)
+        if self.position_coord == "wrist_pos_only":
+            self.obs_buf[:, hand_pose_start:hand_pose_start + 3] = self.right_hand_pos - self.right_wrist_pos
+            self.obs_buf[:, hand_pose_start+3:hand_pose_start+4] = get_euler_xyz(self.hand_orientations[self.hand_indices, :])[0].unsqueeze(-1)
+            self.obs_buf[:, hand_pose_start+4:hand_pose_start+5] = get_euler_xyz(self.hand_orientations[self.hand_indices, :])[1].unsqueeze(-1)
+            self.obs_buf[:, hand_pose_start+5:hand_pose_start+6] = get_euler_xyz(self.hand_orientations[self.hand_indices, :])[2].unsqueeze(-1)
+        else:
+            self.obs_buf[:, hand_pose_start:hand_pose_start + 3] = self.right_hand_pos
+            self.obs_buf[:, hand_pose_start+3:hand_pose_start+4] = get_euler_xyz(self.hand_orientations[self.hand_indices, :])[0].unsqueeze(-1)
+            self.obs_buf[:, hand_pose_start+4:hand_pose_start+5] = get_euler_xyz(self.hand_orientations[self.hand_indices, :])[1].unsqueeze(-1)
+            self.obs_buf[:, hand_pose_start+5:hand_pose_start+6] = get_euler_xyz(self.hand_orientations[self.hand_indices, :])[2].unsqueeze(-1)
 
         action_obs_start = hand_pose_start + 6
         self.obs_buf[:, action_obs_start:action_obs_start + 26] = self.actions[:, :26]
 
         obj_obs_start = action_obs_start + 26  # 144
-        self.obs_buf[:, obj_obs_start:obj_obs_start + 7] = self.object_pose
-        self.obs_buf[:, obj_obs_start + 7:obj_obs_start + 10] = self.object_linvel
-        self.obs_buf[:, obj_obs_start + 10:obj_obs_start + 13] = self.vel_obs_scale * self.object_angvel
-        self.obs_buf[:, obj_obs_start + 13:obj_obs_start + 16] = self.block_right_handle_pos
-        self.obs_buf[:, obj_obs_start + 16:obj_obs_start + 20] = self.block_right_handle_rot
-        self.obs_buf[:, obj_obs_start + 20:obj_obs_start + 23] = self.block_left_handle_pos
-        self.obs_buf[:, obj_obs_start + 23:obj_obs_start + 27] = self.block_left_handle_rot
+        if self.position_coord == "wrist_pos_only":
+            self.obs_buf[:, obj_obs_start:obj_obs_start + 3] = self.object_pos - self.right_wrist_pos
+            self.obs_buf[:, obj_obs_start + 3:obj_obs_start + 7] = self.object_rot
+            self.obs_buf[:, obj_obs_start + 7:obj_obs_start + 10] = self.object_linvel
+            self.obs_buf[:, obj_obs_start + 10:obj_obs_start + 13] = self.vel_obs_scale * self.object_angvel
+            self.obs_buf[:, obj_obs_start + 13:obj_obs_start + 16] = self.block_right_handle_pos - self.right_wrist_pos
+            self.obs_buf[:, obj_obs_start + 16:obj_obs_start + 20] = self.block_right_handle_rot
+            self.obs_buf[:, obj_obs_start + 20:obj_obs_start + 23] = self.block_left_handle_pos - self.right_wrist_pos
+            self.obs_buf[:, obj_obs_start + 23:obj_obs_start + 27] = self.block_left_handle_rot
+        else:
+            self.obs_buf[:, obj_obs_start:obj_obs_start + 7] = self.object_pose
+            self.obs_buf[:, obj_obs_start + 7:obj_obs_start + 10] = self.object_linvel
+            self.obs_buf[:, obj_obs_start + 10:obj_obs_start + 13] = self.vel_obs_scale * self.object_angvel
+            self.obs_buf[:, obj_obs_start + 13:obj_obs_start + 16] = self.block_right_handle_pos
+            self.obs_buf[:, obj_obs_start + 16:obj_obs_start + 20] = self.block_right_handle_rot
+            self.obs_buf[:, obj_obs_start + 20:obj_obs_start + 23] = self.block_left_handle_pos
+            self.obs_buf[:, obj_obs_start + 23:obj_obs_start + 27] = self.block_left_handle_rot
+            
         # goal_obs_start = obj_obs_start + 13  # 157 = 144 + 13
         # self.obs_buf[:, goal_obs_start:goal_obs_start + 7] = self.goal_pose
         # self.obs_buf[:, goal_obs_start + 7:goal_obs_start + 11] = quat_mul(self.object_rot, quat_conjugate(self.goal_rot))

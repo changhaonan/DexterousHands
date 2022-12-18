@@ -36,9 +36,9 @@ env:
   fallDistance: 3.0
   fallPenalty: -1000.0
 
+  actionType: "hand_only"  # full, hand_only, wrist_only  
   objectType: "pot"  # can be block, egg or pen
   observationType: "full_state"  # point_cloud or full_state or absolute_pos or relative_pos
-  actionType: ""  # full, hand_only, wrist_only  
   handAgentIndex: "[[0, 1, 2, 3, 4, 5]]"
   asymmetric_observations: False
   successTolerance: 0.1
