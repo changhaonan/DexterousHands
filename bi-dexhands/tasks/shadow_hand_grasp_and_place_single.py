@@ -427,7 +427,7 @@ class ShadowHandGraspAndPlaceSingle(BaseTask):
         pose_dx, pose_dy, pose_dz = -1.0, 0.0, -0.0
 
         block_start_pose = gymapi.Transform()
-        block_start_pose.p = gymapi.Vec3(0.0, -0.2, 0.6)
+        block_start_pose.p = gymapi.Vec3(0.0, -0.2, 0.6)  # 0.0, -0.2, 0.6
         block_start_pose.r = gymapi.Quat().from_euler_zyx(1.57, 1.57, 0)
         # object_start_pose.p.x = shadow_hand_start_pose.p.x + pose_dx
         # object_start_pose.p.y = shadow_hand_start_pose.p.y + pose_dy
@@ -1257,7 +1257,7 @@ def compute_hand_grasp_reward(
     right_hand_finger_dist = (torch.norm(object_pos - right_hand_ff_pos, p=2, dim=-1) + torch.norm(object_pos - right_hand_mf_pos, p=2, dim=-1)
                             + torch.norm(object_pos - right_hand_rf_pos, p=2, dim=-1) + torch.norm(object_pos - right_hand_lf_pos, p=2, dim=-1) 
                             + torch.norm(object_pos - right_hand_th_pos, p=2, dim=-1))
-    right_hand_dist_rew = torch.exp(-3.0 * right_hand_finger_dist)
+    right_hand_dist_rew = torch.exp(-3.0 * right_hand_finger_dist) * 3.0
 
     # compute the realtive pos
     object_pos_rel = object_pos - wrist_pos
