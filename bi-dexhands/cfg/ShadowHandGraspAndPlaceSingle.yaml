@@ -26,7 +26,7 @@ env:
   resetDofPosRandomInterval: 0.0
   resetDofVelRandomInterval: 0.0
 
-  distRewardScale: -0.1
+  distRewardScale: 4.0
   transition_scale: 1.0
   orientation_scale: 0.5
   rotRewardScale: 0.1
@@ -41,9 +41,15 @@ env:
   observationType: "full_state"  # point_cloud or full_state or absolute_pos or relative_pos
   handAgentIndex: "[[0, 1, 2, 3, 4, 5]]"
   asymmetric_observations: False
-  successTolerance: 0.1
+  successTolerance: 0.01
   printNumSuccesses: False
   maxConsecutiveSuccesses: 0
+
+  # hold 
+  holdStillLen: 20.0
+  holdStillVelTolerance: 0.01
+  holdStillRewardScale: 0.1
+  holdStillAngVelScale: 0.05
 
   asset:
     assetRoot: "../assets"

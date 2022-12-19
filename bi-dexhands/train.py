@@ -95,17 +95,18 @@ if __name__ == '__main__':
     sim_params = parse_sim_params(args, cfg, cfg_train)
     set_seed(cfg_train.get("seed", -1), cfg_train.get("torch_deterministic", False))
     
-    # if not args.test:
-    #     # start wandb when training
-    #     import wandb
-    #     time_str = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    #     run_name = f"{args.task}_{time_str}"
-    #     run = wandb.init(
-    #         project=args.task,
-    #         config=cfg,
-    #         sync_tensorboard=True,
-    #         name=run_name,
-    #         resume="allow",
-    #         monitor_gym=True,
-    #         )
+    if not args.test:
+        # start wandb when training
+        import wandb
+        time_str = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        run_name = f"{args.task}_{time_str}"
+        run = wandb.init(
+            project=args.task,
+            config=cfg,
+            sync_tensorboard=True,
+            name=run_name,
+            resume="allow",
+            monitor_gym=True,
+            )
+    
     train()
