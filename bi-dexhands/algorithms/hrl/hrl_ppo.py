@@ -82,25 +82,36 @@ class HRL_PPO:
         current_states = self.vec_env.get_state()
         
         frame = 0
+        stage = torch.zeros(self.vec_env.num_envs).to(self.device).to(torch.int64)
         while True:
             with torch.no_grad():
                 if self.apply_reset:
                     current_obs = self.vec_env.reset()
-                if frame < 100:
-                    command = command_list[0]
-                else:
-                    command = command_list[1]
-                
-                move_command = np.array(command[0])
-                move_command = torch.from_numpy(move_command).float().to(self.device).repeat(self.vec_env.num_envs).reshape(self.vec_env.num_envs, -1)
-                action_command = command[-1]
-                # compute the action
-                actions = self.actor_critic_dict[action_command].act_inference(current_obs)
+                # compute the action according to stage
+                action_dict = {}
+                for key, value in self.actor_critic_dict.items():
+                    action_dict[key] = value.act_inference(current_obs)
+                action_list = []
+                move_list = []
+                for command in command_list:
+                    action_list.append(action_dict[command[-1]])
+                    move_list.append(torch.tensor(command[0], dtype=torch.float32, device=self.device).repeat(self.vec_env.num_envs, 1))
+                action_list = torch.stack(action_list, dim=1)
+                move_list = torch.stack(move_list, dim=1)
+                actions = action_list[torch.arange(self.vec_env.num_envs), stage, :]
+                moves = move_list[torch.arange(self.vec_env.num_envs), stage, :]
                 # combine with move
-                full_actions = torch.hstack((actions, move_command))
+                full_actions = torch.hstack((actions, moves))
                 # step the vec_environment
                 next_obs, rews, dones, infos = self.vec_env.step(full_actions)
+
+                # update stage
+                success = infos["successes"]
+                stage = stage + success.to(torch.int64)  # proceed stage based success
+                stage = torch.remainder(stage, len(command_list))
+                stage = torch.where(dones > 0, torch.zeros_like(stage), stage)  # reset stage if done
+                print(stage)
                 current_obs.copy_(next_obs)
+                
                 # update frame
                 frame += 1
-                frame = frame % 200

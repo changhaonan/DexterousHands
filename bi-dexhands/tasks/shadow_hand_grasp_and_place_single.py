@@ -641,7 +641,7 @@ class ShadowHandGraspAndPlaceSingle(BaseTask):
                 self.actions, self.action_penalty_scale,
                 self.success_tolerance, self.reach_goal_bonus,
                 self.fall_dist, self.fall_penalty,
-                self.max_consecutive_successes, self.av_factor
+                self.max_consecutive_successes, self.av_factor, True
             )
         else:
             print("Error: sub_task is not defined!")
@@ -1106,6 +1106,10 @@ class ShadowHandGraspAndPlaceSingle(BaseTask):
                     right_torque = pid_control_rotation(actions[:, self.num_actions+3:self.num_actions+7], self.right_wrist_rot, 10.0)
                     right_torque = torch.clamp(right_torque, -1.0, 1.0)
                     self.apply_torque[:, 1, :] = right_torque * self.dt * self.orientation_scale * 1000
+                    # reset goal for vis bug
+                    self.goal_right_move[:, :3] = actions[:, self.num_actions:self.num_actions+3]
+                    self.goal_right_move[:, 3:7] = actions[:, self.num_actions+3:self.num_actions+7]
+
                 self.cur_targets[:, self.actuated_dof_indices] = scale(self.actions[:, 0:20],
                                                                     self.shadow_hand_dof_lower_limits[self.actuated_dof_indices], self.shadow_hand_dof_upper_limits[self.actuated_dof_indices])
                 self.cur_targets[:, self.actuated_dof_indices] = self.act_moving_average * self.cur_targets[:,
@@ -1267,7 +1271,7 @@ def compute_hand_grasp_reward(
     actions, action_penalty_scale: float,
     success_tolerance: float, success_bonus: float, 
     fall_dist: float, fall_penalty: float,
-    max_consecutive_successes: int, av_factor: float
+    max_consecutive_successes: int, av_factor: float, is_testing: bool
 ):
     """
     Compute the reward of grasping and holding the object
@@ -1299,9 +1303,11 @@ def compute_hand_grasp_reward(
     hold_still_count_buf = torch.where(hold_still_success == 1, torch.zeros_like(hold_still_count_buf), hold_still_count_buf)
     
     # success when holding still for a time period
-    successes = successes + hold_still_success
-    resets = torch.where(hold_still_success == 1, torch.ones_like(reset_buf), reset_buf)
-
+    successes = hold_still_success
+    if not is_testing:  # reset when training
+        resets = torch.where(hold_still_success == 1, torch.ones_like(reset_buf), reset_buf)
+    else:
+        resets = reset_buf
     # total reward
     reward = dist_rew + action_penalty * action_penalty_scale + hold_still_rew * hold_still_reward_scale + right_hand_dist_rew
 
