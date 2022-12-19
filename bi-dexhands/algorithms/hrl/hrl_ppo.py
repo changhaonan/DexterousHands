@@ -3,6 +3,7 @@
 from datetime import datetime
 import os
 import time
+import numpy as np
 
 from gym.spaces import Space
 
@@ -89,12 +90,16 @@ class HRL_PPO:
                     command = command_list[0]
                 else:
                     command = command_list[1]
-                    
+                
+                move_command = np.array(command[0])
+                move_command = torch.from_numpy(move_command).float().to(self.device).repeat(self.vec_env.num_envs).reshape(self.vec_env.num_envs, -1)
                 action_command = command[-1]
-                # Compute the action
+                # compute the action
                 actions = self.actor_critic_dict[action_command].act_inference(current_obs)
-                # Step the vec_environment
-                next_obs, rews, dones, infos = self.vec_env.step(actions)
+                # combine with move
+                full_actions = torch.hstack((actions, move_command))
+                # step the vec_environment
+                next_obs, rews, dones, infos = self.vec_env.step(full_actions)
                 current_obs.copy_(next_obs)
                 # update frame
                 frame += 1

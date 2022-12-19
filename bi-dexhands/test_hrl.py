@@ -28,7 +28,10 @@ def test():
                 apply_reset=False,
                 asymmetric=(env.num_states > 0))
     hrl.test()
-    hrl.run_command([["grasp"], ["random"]])
+    hrl.run_command([
+            [[0.0717, -0.2059,  0.7236,  0.4998, -0.5002, -0.5002,  0.4998], "grasp"], 
+            [[0.0717, -0.2059,  1.0,  0.4998, -0.5002, -0.5002,  0.4998], "grasp"]
+            ])
 
 if __name__ == '__main__':
     set_np_formatting()

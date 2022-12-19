@@ -870,7 +870,12 @@ class ShadowHandGraspAndPlaceSingle(BaseTask):
         self.obs_buf[:, hand_pose_start+5:hand_pose_start+6] = get_euler_xyz(self.hand_orientations[self.hand_indices, :])[2].unsqueeze(-1)
 
         action_obs_start = hand_pose_start + 6
-        self.obs_buf[:, action_obs_start:action_obs_start + 26] = self.actions[:, :26]
+        if self.action_type == "hand_only":
+            self.obs_buf[:, action_obs_start:action_obs_start + 20] = self.actions[:, :20]
+            obj_obs_start = action_obs_start + 20  # 144
+        else:
+            self.obs_buf[:, action_obs_start:action_obs_start + 26] = self.actions[:, :26]
+            obj_obs_start = action_obs_start + 26  # 144
 
         obj_obs_start = action_obs_start + 26  # 144
         self.obs_buf[:, obj_obs_start:obj_obs_start + 7] = self.object_pose
@@ -1074,19 +1079,33 @@ class ShadowHandGraspAndPlaceSingle(BaseTask):
         if len(env_ids) > 0:
             self.reset(env_ids, goal_env_ids)
 
-        self.actions = actions.clone().to(self.device)
+        if actions.shape[-1] == self.num_actions:
+            self.actions = actions.clone().to(self.device)
+        else:
+            # external move control
+            self.actions = actions[:, :self.num_actions].clone().to(self.device)
+
         if self.use_relative_control:
             targets = self.prev_targets[:, self.actuated_dof_indices] + self.shadow_hand_dof_speed_scale * self.dt * self.actions
             self.cur_targets[:, self.actuated_dof_indices] = tensor_clamp(targets,
                                                                           self.shadow_hand_dof_lower_limits[self.actuated_dof_indices], self.shadow_hand_dof_upper_limits[self.actuated_dof_indices])
         else:
             if self.action_type == "hand_only":  # policy is hand only, use PID to control wrist
-                right_force = pid_control_transition(self.goal_right_move[:, :3], self.right_wrist_pos, 10.0)
-                right_force = torch.clamp(right_force, -1.0, 1.0)
-                self.apply_forces[:, 1, :] = right_force * self.dt * self.transition_scale * 100000
-                right_torque = pid_control_rotation(self.goal_right_move[:, 3:7], self.right_wrist_rot, 10.0)
-                right_torque = torch.clamp(right_torque, -1.0, 1.0)
-                self.apply_torque[:, 1, :] = right_torque * self.dt * self.orientation_scale * 1000
+                if actions.shape[-1] == self.num_actions:
+                    right_force = pid_control_transition(self.goal_right_move[:, :3], self.right_wrist_pos, 10.0)
+                    right_force = torch.clamp(right_force, -1.0, 1.0)
+                    self.apply_forces[:, 1, :] = right_force * self.dt * self.transition_scale * 100000
+                    right_torque = pid_control_rotation(self.goal_right_move[:, 3:7], self.right_wrist_rot, 10.0)
+                    right_torque = torch.clamp(right_torque, -1.0, 1.0)
+                    self.apply_torque[:, 1, :] = right_torque * self.dt * self.orientation_scale * 1000
+                else:
+                    # external move control
+                    right_force = pid_control_transition(actions[:, self.num_actions:self.num_actions+3], self.right_wrist_pos, 10.0)
+                    right_force = torch.clamp(right_force, -1.0, 1.0)
+                    self.apply_forces[:, 1, :] = right_force * self.dt * self.transition_scale * 100000
+                    right_torque = pid_control_rotation(actions[:, self.num_actions+3:self.num_actions+7], self.right_wrist_rot, 10.0)
+                    right_torque = torch.clamp(right_torque, -1.0, 1.0)
+                    self.apply_torque[:, 1, :] = right_torque * self.dt * self.orientation_scale * 1000
                 self.cur_targets[:, self.actuated_dof_indices] = scale(self.actions[:, 0:20],
                                                                     self.shadow_hand_dof_lower_limits[self.actuated_dof_indices], self.shadow_hand_dof_upper_limits[self.actuated_dof_indices])
                 self.cur_targets[:, self.actuated_dof_indices] = self.act_moving_average * self.cur_targets[:,
