@@ -16,7 +16,8 @@ from algorithms.rl.ppo import ActorCritic
 
 import copy
 
-class HRL_PPO:
+class LM_ENGINE:
+    # language maniulation engine
 
     def __init__(self,
                 vec_env, 
@@ -93,9 +94,13 @@ class HRL_PPO:
                     action_dict[key] = value.act_inference(current_obs)
                 action_list = []
                 move_list = []
+                check_list = []
                 for command in command_list:
-                    action_list.append(action_dict[command[-1]])
-                    move_list.append(torch.tensor(command[0], dtype=torch.float32, device=self.device).repeat(self.vec_env.num_envs, 1))
+                    if command[0] == "move":
+                        action_list.append(action_dict[command[2]])
+                        move_list.append(torch.tensor(command[1], dtype=torch.float32, device=self.device).repeat(self.vec_env.num_envs, 1))
+                    elif command[0] == "check":
+                        check_list.append(command)
                 action_list = torch.stack(action_list, dim=1)
                 move_list = torch.stack(move_list, dim=1)
                 actions = action_list[torch.arange(self.vec_env.num_envs), stage, :]
