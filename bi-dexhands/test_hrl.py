@@ -15,7 +15,7 @@ def test():
     # parse vec task
     task, env = parse_task(args, cfg, cfg_train, sim_params, agent_index)
     model_dict = {
-        "random" : "logs/ShadowHandGraspAndPlaceSingle/ppo/ppo_seed-1/model_0.pt",
+        "release" : "logs/ShadowHandGraspAndPlaceSingle/ppo/ppo_seed-1/model_0.pt",
         "grasp" : "logs/ShadowHandGraspAndPlaceSingle/ppo/ppo_seed-1/model_1400.pt"
     }
     hrl = HRL_PPO(vec_env=env,
@@ -32,7 +32,7 @@ def test():
             [[0.0717, -0.2059,  0.7236,  0.4998, -0.5002, -0.5002,  0.4998], "grasp"], 
             [[0.0717, -0.2059,  0.9,  0.4998, -0.5002, -0.5002,  0.4998], "grasp"], 
             [[0.1, 0.2,  0.9,  0.4998, -0.5002, -0.5002,  0.4998], "grasp"],
-            [[0.1, 0.2,  0.9,  0.4998, -0.5002, -0.5002,  0.4998], "random"]
+            [[0.1, 0.2,  0.9,  0.4998, -0.5002, -0.5002,  0.4998], "release"]
             ])
 
 if __name__ == '__main__':
