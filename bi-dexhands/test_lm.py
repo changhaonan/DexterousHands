@@ -14,13 +14,19 @@ command_file_dict = {
     "ShadowHandGraspAndPlaceSingle" : "test/grasp_place.manip",
 }
 
+model_dict = {
+    "RELEASE" : "logs/ShadowHandGraspAndPlaceSingle/ppo/ppo_seed-1/model_0.pt",
+    "GRASP" : "logs/ShadowHandGraspAndPlaceSingle/ppo/ppo_seed-1/model_1400.pt"
+}
 
 def parse_command_file(command_file):
     command_list = []
     with open(command_file, "r") as f:
         for line in f:
             line = line.strip()
-            line_list = line.lower().split(" ")
+            if line.startswith("#"):  # comment
+                continue
+            line_list = line.upper().split(" ")
             # check line list and convert number to float
             for i, word in enumerate(line_list):
                 if word.startswith("("):
@@ -35,10 +41,6 @@ def test():
     agent_index = get_AgentIndex(cfg)
     # parse vec task
     task, env = parse_task(args, cfg, cfg_train, sim_params, agent_index)
-    model_dict = {
-        "release" : "logs/ShadowHandGraspAndPlaceSingle/ppo/ppo_seed-1/model_0.pt",
-        "grasp" : "logs/ShadowHandGraspAndPlaceSingle/ppo/ppo_seed-1/model_1400.pt"
-    }
     lm_engine = LM_ENGINE(vec_env=env,
                         cfg_train = cfg_train,
                         device=env.rl_device,
@@ -51,7 +53,7 @@ def test():
     lm_engine.test()
     # read command file
     command = parse_command_file(command_file_dict[args.task])
-    lm_engine.run_command(command)
+    lm_engine.run_command(command, num_rounds=4)
 
 
 if __name__ == '__main__':

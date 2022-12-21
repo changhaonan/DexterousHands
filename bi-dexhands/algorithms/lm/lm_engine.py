@@ -4,7 +4,7 @@ from datetime import datetime
 import os
 import time
 import numpy as np
-
+import copy
 from gym.spaces import Space
 
 import torch
@@ -13,8 +13,8 @@ import torch.optim as optim
 
 from torch.utils.tensorboard import SummaryWriter
 from algorithms.rl.ppo import ActorCritic
+from algorithms.lm.check_utils import *
 
-import copy
 
 class LM_ENGINE:
     # language maniulation engine
@@ -78,12 +78,35 @@ class LM_ENGINE:
             value.load_state_dict(torch.load(self.model_dict[key]))
             value.eval()
 
-    def run_command(self, command_list):
+    def check(self, check_command, loc):
+        # conduct checking
+        if check_command[1] == "POS":
+            # pos check
+            P0 = self.vec_env.task.get_obj_pos(check_command[2].lower())
+            if len(check_command) > 4:
+                P1 = self.vec_env.task.get_obj_pos(check_command[3].lower())
+            check_result = eval(check_command[-1][1:-1])
+        elif check_command[1] == "VEL":
+            # pos check
+            V0 = self.vec_env.task.get_obj_vel(check_command[2].lower())
+            if len(check_command) > 4:
+                V1 = self.vec_env.task.get_obj_vel(check_command[3].lower())
+            check_result = eval(check_command[-1][1:-1])
+        elif check_command[1] == "TIMER":
+            T = loc['stage_count']
+            check_result = eval(check_command[-1][1:-1])
+        else:
+            raise ValueError("Unknown check command")
+        return check_result
+
+    def run_command(self, command_list, num_rounds=10):
         current_obs = self.vec_env.reset()
-        current_states = self.vec_env.get_state()
         
         frame = 0
         stage = torch.zeros(self.vec_env.num_envs).to(self.device).to(torch.int64)
+        stage_count = torch.zeros(self.vec_env.num_envs).to(self.device).to(torch.int64)
+        success_rounds = torch.zeros(self.vec_env.num_envs).to(self.device)
+        finished_rounds = torch.zeros(self.vec_env.num_envs).to(self.device)
         while True:
             with torch.no_grad():
                 if self.apply_reset:
@@ -95,28 +118,67 @@ class LM_ENGINE:
                 action_list = []
                 move_list = []
                 check_list = []
+                num_stage = -1
                 for command in command_list:
-                    if command[0] == "move":
+                    if command[0] == "MOVE":
                         action_list.append(action_dict[command[2]])
                         move_list.append(torch.tensor(command[1], dtype=torch.float32, device=self.device).repeat(self.vec_env.num_envs, 1))
-                    elif command[0] == "check":
-                        check_list.append(command)
+                        # switch to next stage
+                        num_stage += 1
+                        check_list.append(torch.ones(self.vec_env.num_envs).to(self.device).to(torch.bool))
+                    elif command[0] == "CHECK":
+                        check_list[num_stage] = torch.logical_and(check_list[num_stage], self.check(command, locals()))
+                num_stage = num_stage + 1
                 action_list = torch.stack(action_list, dim=1)
                 move_list = torch.stack(move_list, dim=1)
+                check_list = torch.stack(check_list, dim=1)
                 actions = action_list[torch.arange(self.vec_env.num_envs), stage, :]
                 moves = move_list[torch.arange(self.vec_env.num_envs), stage, :]
+                checks = check_list[torch.arange(self.vec_env.num_envs), stage]
                 # combine with move
                 full_actions = torch.hstack((actions, moves))
                 # step the vec_environment
                 next_obs, rews, dones, infos = self.vec_env.step(full_actions)
 
+                # conduct checking
+                # check_result_list = []
+                # for stage, stage_check_command in enumerate(check_list):
+                #     stage_check_result = torch.ones(self.vec_env.num_envs).to(self.device).to(torch.bool)
+                #     for check_command in stage_check_command:
+                #         stage_check_result = torch.logical_and(stage_check_result, self.check(check_command))
+                #     check_result_list.append(stage_check_result)
+                # check_result = torch.stack(check_result_list, dim=1)
+                # checks = check_result[torch.arange(self.vec_env.num_envs), stage]
                 # update stage
                 success = infos["successes"]
-                stage = stage + success.to(torch.int64)  # proceed stage based success
-                stage = torch.remainder(stage, len(command_list))
+                # stage = stage + success.to(torch.int64)  # proceed stage based success
+                stage_count = stage_count + 1
+                stage = stage + checks.to(torch.int64)  # proceed stage based checks
+                stage_count = torch.where(checks, torch.zeros_like(stage_count), stage_count)  # reset stage count if stage proceed
                 stage = torch.where(dones > 0, torch.zeros_like(stage), stage)  # reset stage if done
-                print(stage)
+                stage_count = torch.where(dones > 0, torch.zeros_like(stage_count), stage_count)  # reset stage count if stage proceed
                 current_obs.copy_(next_obs)
-                
+
+                # update finished rounds & success rounds
+                success_rounds = torch.where(stage >= num_stage, success_rounds + 1, success_rounds)
+                finished_rounds = torch.where(torch.logical_or(dones > 0, stage >= num_stage), finished_rounds + 1, finished_rounds)
+                # reset if success
+                reset_env_idx = torch.arange(self.vec_env.num_envs)[stage >= num_stage]
+                if reset_env_idx.shape[0] > 0:
+                    self.vec_env.task.reset(reset_env_idx)
+                print("--------------------")
+                print(f"Checks: {checks[0]}")
+                print(f"Stage: {stage[0]}")
+                print(f"Stage count: {stage_count[0]}")
+                print("Success ratio: ", success_rounds.sum() / finished_rounds.sum())
+                # print(success_rounds)
+                stage = torch.remainder(stage, num_stage)
+                # print(stage)
                 # update frame
                 frame += 1
+
+                if finished_rounds.sum() > num_rounds * self.vec_env.num_envs:
+                    break
+
+        # generate the final success ratio
+        print("Success ratio: ", success_rounds.sum() / finished_rounds.sum())

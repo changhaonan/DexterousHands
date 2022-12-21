@@ -973,7 +973,7 @@ class ShadowHandGraspAndPlaceSingle(BaseTask):
 
         self.reset_goal_buf[env_ids] = 0
 
-    def reset(self, env_ids, goal_env_ids):
+    def reset(self, env_ids, goal_env_ids=None):
         """
         Reset and randomize the environment
 
@@ -983,6 +983,10 @@ class ShadowHandGraspAndPlaceSingle(BaseTask):
             goal_env_ids (tensor): The index of the environment that only goals need reset
 
         """
+        # default goal_env_ids is the same as env_ids
+        if goal_env_ids is None:
+            goal_env_ids = env_ids
+
         # randomization can happen only at reset time, since it can reset actor positions on GPU
         if self.randomize:
             self.apply_randomizations(self.randomization_params)
@@ -1216,6 +1220,24 @@ class ShadowHandGraspAndPlaceSingle(BaseTask):
             camera_image = Im.fromarray(camera_image)
         
         return camera_image
+    
+    def get_obj_pos(self, obj_name):
+        if obj_name == "block":
+            return self.block_left_handle_pos
+        elif obj_name == "pot" or obj_name == "object":
+            return self.object_pos
+        elif obj_name == "table":
+            return torch.tensor([0.0, 0.0, 0.6], device=self.device, dtype=torch.float).repeat(self.num_envs, 1)
+        else:
+            raise ValueError("obj_name is not defined!")
+
+    def get_obj_vel(self, obj_name):
+        if obj_name == "block":
+            return self.block_left_handle_linvel
+        elif obj_name == "pot" or obj_name == "object":
+            return self.object_linvel
+        else:
+            raise ValueError("obj_name is not defined!")
         
 #####################################################################
 ###=========================jit functions=========================###
