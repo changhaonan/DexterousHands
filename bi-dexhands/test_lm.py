@@ -16,7 +16,7 @@ command_file_dict = {
 
 model_dict = {
     "RELEASE" : "logs/ShadowHandGraspAndPlaceSingle/ppo/ppo_seed-1/model_0.pt",
-    "GRASP" : "logs/ShadowHandGraspAndPlaceSingle/ppo/ppo_seed-1/model_1400.pt"
+    "GRASP" : "logs/ShadowHandGraspAndPlaceSingle/ppo/ppo_seed-1/model_4000.pt"
 }
 
 def parse_command_file(command_file):
@@ -37,7 +37,7 @@ def parse_command_file(command_file):
     return command_list
 
 
-def test():
+def test(program_name):
     agent_index = get_AgentIndex(cfg)
     # parse vec task
     task, env = parse_task(args, cfg, cfg_train, sim_params, agent_index)
@@ -52,8 +52,9 @@ def test():
                         asymmetric=(env.num_states > 0))
     lm_engine.test()
     # read command file
-    command = parse_command_file(command_file_dict[args.task])
-    lm_engine.run_command(command, num_rounds=4)
+    command = parse_command_file(f"test/{program_name}.manip")
+    lm_engine.run_command(command, 4, "/home/robot-learning/Projects/DexterousHands/bi-dexhands/test/gym_states.pt")
+    # lm_engine.test_env("/home/robot-learning/Projects/DexterousHands/bi-dexhands/test/gym_states.pt")
 
 
 if __name__ == '__main__':
@@ -64,4 +65,5 @@ if __name__ == '__main__':
     set_seed(cfg_train.get("seed", -1), cfg_train.get("torch_deterministic", False))
     
     # start test
-    test()
+    program_name = "grasp"
+    test(program_name=program_name)

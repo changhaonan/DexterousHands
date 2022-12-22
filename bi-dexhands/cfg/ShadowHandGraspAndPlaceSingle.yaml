@@ -36,7 +36,7 @@ env:
   fallDistance: 3.0
   fallPenalty: -1000.0
 
-  actionType: "hand_only"  # full, hand_only, wrist_only  
+  actionType: "hand_only"  # full, hand_only, wrist_only
   objectType: "pot"  # can be block, egg or pen
   observationType: "full_state"  # point_cloud or full_state or absolute_pos or relative_pos
   handAgentIndex: "[[0, 1, 2, 3, 4, 5]]"
@@ -50,6 +50,11 @@ env:
   holdStillVelTolerance: 0.01
   holdStillRewardScale: 0.1
   holdStillAngVelScale: 0.05
+
+  # reset
+  reset_from_file: True
+  reset_file_path: "test/gym_states.pt"
+  save_success_state: True
 
   asset:
     assetRoot: "../assets"

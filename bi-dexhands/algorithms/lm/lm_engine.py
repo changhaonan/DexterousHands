@@ -78,6 +78,17 @@ class LM_ENGINE:
             value.load_state_dict(torch.load(self.model_dict[key]))
             value.eval()
 
+    def test_env(self, output_path):
+        # run 1000 steps
+        # self.vec_env.task.save_gym_states(output_path)
+        # reset 
+        self.vec_env.reset()
+        # load 1000 steps
+        self.vec_env.task.load_gym_states(output_path)
+    
+    def save_state(self, output_path):
+        pass
+
     def check(self, check_command, loc):
         # conduct checking
         if check_command[1] == "POS":
@@ -99,7 +110,7 @@ class LM_ENGINE:
             raise ValueError("Unknown check command")
         return check_result
 
-    def run_command(self, command_list, num_rounds=10):
+    def run_command(self, command_list, num_rounds, output_path):
         current_obs = self.vec_env.reset()
         
         frame = 0
@@ -107,6 +118,7 @@ class LM_ENGINE:
         stage_count = torch.zeros(self.vec_env.num_envs).to(self.device).to(torch.int64)
         success_rounds = torch.zeros(self.vec_env.num_envs).to(self.device)
         finished_rounds = torch.zeros(self.vec_env.num_envs).to(self.device)
+
         while True:
             with torch.no_grad():
                 if self.apply_reset:
@@ -170,15 +182,15 @@ class LM_ENGINE:
                 print(f"Checks: {checks[0]}")
                 print(f"Stage: {stage[0]}")
                 print(f"Stage count: {stage_count[0]}")
-                print("Success ratio: ", success_rounds.sum() / finished_rounds.sum())
-                # print(success_rounds)
+                print(f"Success ratio: {success_rounds.sum() / (finished_rounds.sum() + 1e-6)}.")
                 stage = torch.remainder(stage, num_stage)
-                # print(stage)
                 # update frame
                 frame += 1
 
                 if finished_rounds.sum() > num_rounds * self.vec_env.num_envs:
                     break
-
+    
+        # save states when leaving
+        self.vec_env.task.save_success_gym_states(output_path)
         # generate the final success ratio
-        print("Success ratio: ", success_rounds.sum() / finished_rounds.sum())
+        print(f"Success ratio: {success_rounds.sum() / (finished_rounds.sum() + 1e-6)}.")

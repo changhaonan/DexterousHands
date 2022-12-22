@@ -249,6 +249,7 @@ class ShadowHandGraspAndPlaceSingle(BaseTask):
         self.consecutive_successes = torch.zeros(1, dtype=torch.float, device=self.device)
         # buf for grasp
         self.hold_still_count_buf = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
+        self.disturb_force = torch.zeros((self.num_envs, 3), dtype=torch.float, device=self.device)
 
         self.av_factor = to_torch(self.av_factor, dtype=torch.float, device=self.device)
         self.apply_forces = torch.zeros((self.num_envs, self.num_bodies, 3), device=self.device, dtype=torch.float)
@@ -256,6 +257,21 @@ class ShadowHandGraspAndPlaceSingle(BaseTask):
 
         self.total_successes = 0
         self.total_resets = 0
+
+        # reset from file setting
+        if cfg["env"]["reset_from_file"]:
+            self.reset_from_file = True
+            self.load_gym_states(cfg["env"]["reset_file_path"])
+        else:
+            self.reset_from_file = False
+        
+        if cfg["env"]["save_success_state"]:
+            # initialize success state
+            self.save_success_state = True
+            self.success_root_actor_state = gymtorch.wrap_tensor(actor_root_state_tensor).clone()
+            self.success_dof_state = gymtorch.wrap_tensor(dof_state_tensor).clone()
+        else:
+            self.save_success_state = False
 
     def create_sim(self):
         """
@@ -461,9 +477,11 @@ class ShadowHandGraspAndPlaceSingle(BaseTask):
         self.hand_indices = []
         self.fingertip_indices = []
         self.object_indices = []
+
         self.goal_object_indices = []
         self.table_indices = []
         self.block_indices = []
+        self.block_rb_indices = []
 
         self.fingertip_handles = [self.gym.find_asset_rigid_body_index(shadow_hand_asset, name) for name in self.fingertips]
 
@@ -546,6 +564,8 @@ class ShadowHandGraspAndPlaceSingle(BaseTask):
 
             block_handle = self.gym.create_actor(env_ptr, block_asset, block_start_pose, "block", i, 0, 0)
             block_idx = self.gym.get_actor_index(env_ptr, block_handle, gymapi.DOMAIN_SIM)
+            block_rb_idx = self.gym.get_actor_rigid_body_index(env_ptr, block_handle, 0, gymapi.DOMAIN_ENV)
+            self.block_rb_indices.append(block_rb_idx)
             self.block_indices.append(block_idx)
 
             # add goal object
@@ -608,6 +628,7 @@ class ShadowHandGraspAndPlaceSingle(BaseTask):
         self.hand_indices = to_torch(self.hand_indices, dtype=torch.long, device=self.device)
 
         self.object_indices = to_torch(self.object_indices, dtype=torch.long, device=self.device)
+        self.block_rb_indices = to_torch(self.block_rb_indices, dtype=torch.long, device=self.device)
         self.goal_object_indices = to_torch(self.goal_object_indices, dtype=torch.long, device=self.device)
         self.table_indices = to_torch(self.table_indices, dtype=torch.long, device=self.device)
         self.block_indices = to_torch(self.block_indices, dtype=torch.long, device=self.device)
@@ -970,6 +991,8 @@ class ShadowHandGraspAndPlaceSingle(BaseTask):
             # self.goal_right_move[env_ids, 3:7] = quat_mul(self.goal_right_move[env_ids, 3:7], right_rot_disturb)
             # goal for grasp (this goal is relative pos)
             self.grasp_goal[env_ids, :3] = torch.tensor([-0.07, 0.0, -0.04], device=self.device, dtype=torch.float) + rand_floats[:, 9:12] * 0.01
+            # add random force disturb
+            self.disturb_force[env_ids, :3] = rand_floats[:, 12:15] * 0.1
 
         self.reset_goal_buf[env_ids] = 0
 
@@ -1045,13 +1068,24 @@ class ShadowHandGraspAndPlaceSingle(BaseTask):
         self.hand_positions[all_indices.to(torch.long), :] = self.saved_root_tensor[all_indices.to(torch.long), 0:3]
         self.hand_orientations[all_indices.to(torch.long), :] = self.saved_root_tensor[all_indices.to(torch.long), 3:7]
 
-        self.gym.set_dof_state_tensor_indexed(self.sim,
-                                              gymtorch.unwrap_tensor(self.dof_state),
-                                              gymtorch.unwrap_tensor(all_hand_indices), len(all_hand_indices))
-                                              
-        self.gym.set_actor_root_state_tensor_indexed(self.sim,
-                                                     gymtorch.unwrap_tensor(self.root_state_tensor),
-                                                     gymtorch.unwrap_tensor(all_indices), len(all_indices))
+        if self.reset_from_file:
+            self.dof_state.view(self.num_envs, -1, 2)[env_ids, :, :] = self.preset_dof_state_tensor.view(self.num_envs, -1, 2)[env_ids, :, :]
+            self.root_state_tensor.view(self.num_envs, -1, 13)[env_ids, :, :] = self.preset_actor_root_state_tensor.view(self.num_envs, -1, 13)[env_ids, :, :]
+            self.gym.set_dof_state_tensor_indexed(self.sim,
+                                                gymtorch.unwrap_tensor(self.dof_state),
+                                                gymtorch.unwrap_tensor(all_hand_indices), len(all_hand_indices))
+                                                
+            self.gym.set_actor_root_state_tensor_indexed(self.sim,
+                                                        gymtorch.unwrap_tensor(self.root_state_tensor),
+                                                        gymtorch.unwrap_tensor(all_indices), len(all_indices))
+        else:   
+            self.gym.set_dof_state_tensor_indexed(self.sim,
+                                                gymtorch.unwrap_tensor(self.dof_state),
+                                                gymtorch.unwrap_tensor(all_hand_indices), len(all_hand_indices))
+                                                
+            self.gym.set_actor_root_state_tensor_indexed(self.sim,
+                                                        gymtorch.unwrap_tensor(self.root_state_tensor),
+                                                        gymtorch.unwrap_tensor(all_indices), len(all_indices))
         self.progress_buf[env_ids] = 0
         self.reset_buf[env_ids] = 0
         self.successes[env_ids] = 0
@@ -1128,7 +1162,12 @@ class ShadowHandGraspAndPlaceSingle(BaseTask):
                 self.cur_targets[:, self.actuated_dof_indices] = tensor_clamp(self.cur_targets[:, self.actuated_dof_indices],
                                                                             self.shadow_hand_dof_lower_limits[self.actuated_dof_indices], self.shadow_hand_dof_upper_limits[self.actuated_dof_indices])
                 
-            self.gym.apply_rigid_body_force_tensors(self.sim, gymtorch.unwrap_tensor(self.apply_forces), gymtorch.unwrap_tensor(self.apply_torque), gymapi.ENV_SPACE)
+            rb_force = self.apply_forces
+            # apply force disturb
+            if self.action_type == "hand_only":
+                force_after_reach = torch.where(self.hold_still_count_buf.view(-1,1).repeat(1, 3) > 0, self.disturb_force, torch.zeros_like(self.disturb_force))
+                rb_force[:, self.block_rb_indices, :] = force_after_reach
+            self.gym.apply_rigid_body_force_tensors(self.sim, gymtorch.unwrap_tensor(rb_force), gymtorch.unwrap_tensor(self.apply_torque), gymapi.ENV_SPACE)
 
         self.prev_targets[:, self.actuated_dof_indices] = self.cur_targets[:, self.actuated_dof_indices]
         # self.prev_targets[:, 49] = self.cur_targets[:, 49]
@@ -1149,6 +1188,10 @@ class ShadowHandGraspAndPlaceSingle(BaseTask):
 
         self.compute_observations()
         self.compute_reward(self.actions)
+
+        # update success dof state
+        if self.save_success_state:
+            self.update_success_gym_states()
 
         if self.viewer and self.debug_viz:
             # draw axes on target object
@@ -1238,7 +1281,31 @@ class ShadowHandGraspAndPlaceSingle(BaseTask):
             return self.object_linvel
         else:
             raise ValueError("obj_name is not defined!")
-        
+    
+    def save_current_gym_states(self, output_path):
+        # save the states of the scene
+        actor_root_state_tensor = gymtorch.wrap_tensor(self.gym.acquire_actor_root_state_tensor(self.sim))
+        dof_state_tensor = gymtorch.wrap_tensor(self.gym.acquire_dof_state_tensor(self.sim))
+        torch.save({"actor_root_state_tensor": actor_root_state_tensor, "dof_state_tensor": dof_state_tensor,}, output_path)
+    
+    def update_success_gym_states(self):
+        actor_root_state_tensor = gymtorch.wrap_tensor(self.gym.acquire_actor_root_state_tensor(self.sim))
+        dof_state_tensor = gymtorch.wrap_tensor(self.gym.acquire_dof_state_tensor(self.sim))
+
+        success_idx = torch.arange(self.num_envs)[self.successes.bool()].long()
+        if success_idx.shape[0] > 0:
+            self.success_dof_state.view(self.num_envs, -1, 2)[success_idx, :, :] = dof_state_tensor.view(self.num_envs, -1, 2)[success_idx, :, :]
+            self.success_root_actor_state.view(self.num_envs, -1, 13)[success_idx, :, :] = actor_root_state_tensor.view(self.num_envs, -1, 13)[success_idx, :, :]
+
+    def save_success_gym_states(self, output_path):
+        print(f"Save success states to {output_path}.")
+        torch.save({"actor_root_state_tensor": self.success_root_actor_state, "dof_state_tensor": self.success_dof_state,}, output_path)
+
+    def load_gym_states(self, input_path):
+        saved_tensor = torch.load(input_path)
+        self.preset_actor_root_state_tensor = saved_tensor["actor_root_state_tensor"]
+        self.preset_dof_state_tensor = saved_tensor["dof_state_tensor"]
+
 #####################################################################
 ###=========================jit functions=========================###
 #####################################################################
