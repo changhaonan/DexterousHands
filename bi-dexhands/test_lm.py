@@ -15,8 +15,8 @@ command_file_dict = {
 }
 
 model_dict = {
-    "RELEASE" : "logs/ShadowHandGraspAndPlaceSingle/ppo/ppo_seed-1/model_0.pt",
-    "GRASP" : "logs/ShadowHandGraspAndPlaceSingle/ppo/ppo_seed-1/model_4000.pt"
+    "RELEASE" : "logs/ShadowHandGraspAndPlaceSingle/ppo/ppo_seed-1/model_release.pt",
+    "GRASP" : "logs/ShadowHandGraspAndPlaceSingle/ppo/ppo_seed-1/model_grasp.pt"
 }
 
 def parse_command_file(command_file):
@@ -65,5 +65,7 @@ if __name__ == '__main__':
     set_seed(cfg_train.get("seed", -1), cfg_train.get("torch_deterministic", False))
     
     # start test
-    program_name = "grasp"
+    # program_name = "grasp"
+    # program_name = "release"
+    program_name = "grasp_place"
     test(program_name=program_name)

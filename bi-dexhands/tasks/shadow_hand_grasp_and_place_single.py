@@ -258,6 +258,8 @@ class ShadowHandGraspAndPlaceSingle(BaseTask):
         self.total_successes = 0
         self.total_resets = 0
 
+        # info
+        self.num_actors = self.gym.get_actor_count(self.envs[0])
         # reset from file setting
         if cfg["env"]["reset_from_file"]:
             self.reset_from_file = True
@@ -664,6 +666,21 @@ class ShadowHandGraspAndPlaceSingle(BaseTask):
                 self.fall_dist, self.fall_penalty,
                 self.max_consecutive_successes, self.av_factor, True
             )
+        elif self.sub_task == "release":
+            self.rew_buf[:], self.reset_buf[:], self.progress_buf[:], self.hold_still_count_buf[:], self.successes[:] = compute_hand_release_reward(
+                self.rew_buf, self.reset_buf, self.progress_buf, self.successes,
+                self.max_episode_length, 
+                self.block_left_handle_pos, self.block_left_handle_rot, self.block_left_handle_linvel, self.block_left_handle_angvel,
+                self.grasp_goal[:, 0:3], self.grasp_goal[:, 3:7],
+                self.right_wrist_pos, self.right_wrist_rot,
+                self.right_hand_ff_pos, self.right_hand_mf_pos, self.right_hand_rf_pos, self.right_hand_lf_pos, self.right_hand_th_pos,
+                self.dist_reward_scale, self.rot_reward_scale, self.rot_eps, 
+                self.hold_still_count_buf, self.hold_still_len, self.hold_still_reward_scale, self.hold_still_vel_tolerance, self.hold_still_anglevel_scale,
+                self.actions, self.action_penalty_scale,
+                self.success_tolerance, self.reach_goal_bonus,
+                self.fall_dist, self.fall_penalty,
+                self.max_consecutive_successes, self.av_factor, True
+            )
         else:
             print("Error: sub_task is not defined!")
             assert(False)
@@ -978,7 +995,7 @@ class ShadowHandGraspAndPlaceSingle(BaseTask):
                                                          gymtorch.unwrap_tensor(self.root_state_tensor),
                                                          gymtorch.unwrap_tensor(goal_object_indices), len(env_ids))
         # move goal
-        if self.action_type == "hand_only" and self.sub_task == "grasp":
+        if self.action_type == "hand_only" and (self.sub_task == "grasp" or self.sub_task == "release"):
             # goal for move
             left_block_pos = self.saved_rigid_body_states[:, 26 + 2, 0:3]
             # right range 
@@ -1298,13 +1315,34 @@ class ShadowHandGraspAndPlaceSingle(BaseTask):
             self.success_root_actor_state.view(self.num_envs, -1, 13)[success_idx, :, :] = actor_root_state_tensor.view(self.num_envs, -1, 13)[success_idx, :, :]
 
     def save_success_gym_states(self, output_path):
-        print(f"Save success states to {output_path}.")
-        torch.save({"actor_root_state_tensor": self.success_root_actor_state, "dof_state_tensor": self.success_dof_state,}, output_path)
+        if self.save_success_state:
+            print(f"Save success states to {output_path}.")
+            torch.save({"actor_root_state_tensor": self.success_root_actor_state, "dof_state_tensor": self.success_dof_state,}, output_path)
+        else:
+            print("Save success state is not enabled.")
 
     def load_gym_states(self, input_path):
         saved_tensor = torch.load(input_path)
         self.preset_actor_root_state_tensor = saved_tensor["actor_root_state_tensor"]
         self.preset_dof_state_tensor = saved_tensor["dof_state_tensor"]
+        # expand state size to num_envs
+        self.preset_actor_root_state_tensor = self.preset_actor_root_state_tensor.reshape(-1, self.num_actors, 13)
+        self.preset_dof_state_tensor = self.preset_dof_state_tensor.reshape(-1, self.num_dofs, 2)
+
+        preset_num_envs = self.preset_actor_root_state_tensor.shape[0]
+        if preset_num_envs >= self.num_envs:
+            self.preset_actor_root_state_tensor = self.preset_actor_root_state_tensor[:self.num_envs]
+            self.preset_dof_state_tensor = self.preset_dof_state_tensor[:self.num_envs]
+        else:
+            # repeat the states
+            self.preset_actor_root_state_tensor = self.preset_actor_root_state_tensor.repeat(self.num_envs // preset_num_envs + 1, 1, 1)[:self.num_envs]
+            self.preset_dof_state_tensor = self.preset_dof_state_tensor.repeat(self.num_envs // preset_num_envs + 1, 1, 1)[:self.num_envs]
+
+        # reshape
+        self.preset_actor_root_state_tensor = self.preset_actor_root_state_tensor.reshape(-1, 13)
+        self.preset_dof_state_tensor = self.preset_dof_state_tensor.reshape(-1, 2)
+
+        print(f"Load success states from {input_path}.")
 
 #####################################################################
 ###=========================jit functions=========================###
@@ -1406,6 +1444,41 @@ def compute_hand_grasp_reward(
     # timeout resets
     timed_out = progress_buf >= max_episode_length - 1
     resets = torch.where(timed_out, torch.ones_like(resets), resets)
+    
+    # check the results
+    # print("---------------------")
+    # for i in range(4):
+    #     print(f"ENV-{i}: successes: {successes[i]}, goal dist: {goal_dist[i]}, reward: {reward[i]}, hold_still_count_buf: {hold_still_count_buf[i]}, resets: {resets[i]}.")
+    return reward, resets, progress_buf, hold_still_count_buf, successes
+
+
+@torch.jit.script
+def compute_hand_release_reward(
+    rew_buf, reset_buf, progress_buf, successes,
+    max_episode_length: float,
+    object_pos, object_rot, object_linvel, object_angvel,
+    target_pos, target_rot,
+    wrist_pos, wrist_rot,
+    right_hand_ff_pos, right_hand_mf_pos, right_hand_rf_pos, right_hand_lf_pos, right_hand_th_pos,
+    dist_reward_scale: float, rot_reward_scale: float, rot_eps: float,
+    hold_still_count_buf, hold_still_len, hold_still_reward_scale: float, hold_still_vel_threshold: float, angvel_scale: float,
+    actions, action_penalty_scale: float,
+    success_tolerance: float, success_bonus: float, 
+    fall_dist: float, fall_penalty: float,
+    max_consecutive_successes: int, av_factor: float, is_testing: bool
+):
+    """
+    Compute the reward of grasping and holding the object
+    """
+    # keep the action close to -1
+    action_reward = torch.square(actions + 1.0).sum(dim=-1) * (-0.05)
+
+    # success bonus: reach the goal
+    reward = action_reward 
+    
+    # timeout resets
+    timed_out = progress_buf >= max_episode_length - 1
+    resets = torch.where(timed_out, torch.ones_like(reset_buf), reset_buf)
     
     # check the results
     # print("---------------------")

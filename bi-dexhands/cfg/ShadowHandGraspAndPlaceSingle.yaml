@@ -9,7 +9,7 @@ env:
   pointCloudDebug: False
   aggregateMode: 1
 
-  sub_task: "grasp"  # move, grasp or release
+  sub_task: "release"  # move, grasp or release
 
   stiffnessScale: 1.0
   forceLimitScale: 1.0
@@ -52,9 +52,9 @@ env:
   holdStillAngVelScale: 0.05
 
   # reset
-  reset_from_file: True
+  reset_from_file: False
   reset_file_path: "test/gym_states.pt"
-  save_success_state: True
+  save_success_state: False
 
   asset:
     assetRoot: "../assets"
