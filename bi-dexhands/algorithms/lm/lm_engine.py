@@ -82,7 +82,7 @@ class LM_ENGINE:
 
         self.apply_reset = apply_reset 
     
-    def init(self, init_command, test=False, teleop=False):
+    def init(self, init_command, test=False, teleop_mode=None, other_args=None):
         # command init
         if init_command[0] != "INIT":
             return
@@ -98,9 +98,9 @@ class LM_ENGINE:
                 value.load_state_dict(torch.load(self.model_dict[key]))
                 value.eval()
         # teleop init
-        if teleop:
+        if teleop_mode is not None:
             self.use_teleop = True
-            self.init_teleop()
+            self.init_teleop(teleop_mode, other_args)
 
     def test_env(self, output_path):
         # run 1000 steps
@@ -113,8 +113,12 @@ class LM_ENGINE:
     def save_state(self, output_path):
         pass
 
-    def init_teleop(self):
-        self.cap = cv2.VideoCapture(0)
+    def init_teleop(self, teleop_mode, other_args):
+        self.teleop_mode = teleop_mode
+        if teleop_mode == "webcam":
+            self.cap = cv2.VideoCapture(0)
+        elif teleop_mode == "video":
+            self.cap = cv2.VideoCapture(other_args["video_file"])
         self.hand_pose_estimator = MediapipeHandEstimator()
         self.last_ee_pose = np.zeros(7)
         self.last_finger_pose = np.zeros(20)  #FIXME:  to make it adaptive to different hand models
@@ -128,19 +132,20 @@ class LM_ENGINE:
             x_pos, y_pos = move_ee_pos[0:2]  # flip x, y
             move_ee_pos[0:2] = [y_pos, -x_pos]
             move_ee_pos[0:3] = move_ee_pos[0:3] * self.move_boundary_range + self.move_boundary_mid
-            print(f"Use last pose {move_ee_pos}.")
             return move_ee_pos, self.last_finger_pose
         else:
             # rescale x, y to [-1, 1]
             ee_pose_xyz = joints_3d[0:3] * 2.0 - 1.0
             self.last_ee_pose[0:3] = ee_pose_xyz
+            # ee pos
             move_ee_pos = np.copy(self.last_ee_pose)
             move_ee_pos[2] = 0.0  # fix z-axis
             x_pos, y_pos = move_ee_pos[0:2]  # flip x, y
             move_ee_pos[0:2] = [y_pos, -x_pos]
             move_ee_pos[0:3] = move_ee_pos[0:3] * self.move_boundary_range + self.move_boundary_mid
             self.last_finger_pose = np.zeros(20)
-            print(f"Use new pose: {move_ee_pos}.")
+            # finger pose
+            finger_pose = finger_map.retarget(joints_3d[3:])
             return move_ee_pos, self.last_finger_pose
 
     def check(self, check_command, loc):
@@ -175,7 +180,14 @@ class LM_ENGINE:
 
         while True:
             if self.use_teleop:
-                ret, frame_image = self.cap.read()
+                if self.cap.isOpened():
+                    ret, frame_image = self.cap.read()
+                    if not ret and self.teleop_mode == "video":
+                        print("Loop video from start.")
+                        self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                        continue  # jump this frame
+                else:
+                    raise ValueError("Cannot open video capture!")
             with torch.no_grad():
                 if self.apply_reset:
                     current_obs = self.vec_env.reset()

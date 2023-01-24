@@ -345,7 +345,7 @@ py::array_t<double> retarget(py::array_t<double> input1)
     b[14] = angletotal2[1];
     b[15] = angletotal2[0];
 
-    YAML::Node root = YAML::LoadFile("./config.yaml");
+    YAML::Node root = YAML::LoadFile("./cfg/teleop/teleop_config.yaml");
     for (int i = 0; i < 16; i++)
     {
         if (i == 0 || i == 4 || i == 8 || i == 12)

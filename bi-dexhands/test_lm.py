@@ -48,8 +48,10 @@ def test(program_name):
                         asymmetric=(env.num_states > 0))
     # read command file
     command = parse_command_file(f"test/{program_name}.manip")
-    lm_engine.init(command[0], test=True, teleop=True)
-    lm_engine.run_command(command, 10, "/home/robot-learning/Projects/DexterousHands/bi-dexhands/test/gym_states.pt")
+
+    init_option = {"video_file" : "./data/teleop/IMG_6055.MOV"}
+    lm_engine.init(command[0], test=True, teleop_mode="video", other_args=init_option)
+    lm_engine.run_command(command, 10, "./test/gym_states.pt")
     # lm_engine.test_env("/home/robot-learning/Projects/DexterousHands/bi-dexhands/test/gym_states.pt")
 
 
