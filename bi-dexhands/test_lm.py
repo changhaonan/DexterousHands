@@ -10,10 +10,6 @@ from utils.process_marl import process_MultiAgentRL, get_AgentIndex
 from utils.parse_task import parse_task
 from algorithms.lm.lm_engine import LM_ENGINE
 
-command_file_dict = {
-    "ShadowHandGraspAndPlaceSingle" : "test/grasp_place.manip",
-}
-
 model_dict = {
     "RELEASE" : "logs/ShadowHandGraspAndPlaceSingle/ppo/ppo_seed-1/model_release.pt",
     "GRASP" : "logs/ShadowHandGraspAndPlaceSingle/ppo/ppo_seed-1/model_grasp.pt"
@@ -50,10 +46,10 @@ def test(program_name):
                         print_log=True,
                         apply_reset=False,
                         asymmetric=(env.num_states > 0))
-    lm_engine.test()
     # read command file
     command = parse_command_file(f"test/{program_name}.manip")
-    lm_engine.run_command(command, 4, "/home/robot-learning/Projects/DexterousHands/bi-dexhands/test/gym_states.pt")
+    lm_engine.init(command[0], test=True, teleop=True)
+    lm_engine.run_command(command, 10, "/home/robot-learning/Projects/DexterousHands/bi-dexhands/test/gym_states.pt")
     # lm_engine.test_env("/home/robot-learning/Projects/DexterousHands/bi-dexhands/test/gym_states.pt")
 
 
@@ -67,5 +63,7 @@ if __name__ == '__main__':
     # start test
     # program_name = "grasp"
     # program_name = "release"
-    program_name = "grasp_place"
+    # program_name = "grasp_place"
+    # program_name = "grasp_place_v2"
+    program_name = "teleop"
     test(program_name=program_name)

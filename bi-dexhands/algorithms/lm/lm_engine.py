@@ -4,6 +4,7 @@ from datetime import datetime
 import os
 import time
 import numpy as np
+import cv2
 import copy
 from gym.spaces import Space
 
@@ -14,6 +15,7 @@ import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
 from algorithms.rl.ppo import ActorCritic
 from algorithms.lm.check_utils import *
+from utils.teleop.mediapipe_hand_pose import MediapipeHandEstimator
 
 
 class LM_ENGINE:
@@ -54,6 +56,8 @@ class LM_ENGINE:
         self.vec_env = vec_env
         self.model_dict = model_dict
 
+        # operation
+        self.use_teleop = False
         # parameters
         self.actor_critic_dict = {}
         for key, value in model_dict.items():
@@ -72,11 +76,24 @@ class LM_ENGINE:
 
         self.apply_reset = apply_reset 
     
-    def test(self):
-        # load sub policy
-        for key, value in self.actor_critic_dict.items():
-            value.load_state_dict(torch.load(self.model_dict[key]))
-            value.eval()
+    def init(self, init_command, test=False, teleop=False):
+        # command init
+        assert init_command[0] == "INIT"
+        move_boundary = init_command[1]
+        move_boundary_low = np.array([move_boundary[0], move_boundary[2], move_boundary[4]])
+        move_boundary_high = np.array([move_boundary[1], move_boundary[3], move_boundary[5]])
+        self.move_boundary_range = (move_boundary_high - move_boundary_low) / 2.0
+        self.move_boundary_mid = (move_boundary_high + move_boundary_low) / 2.0
+        # policy init
+        if test:
+            # load sub policy
+            for key, value in self.actor_critic_dict.items():
+                value.load_state_dict(torch.load(self.model_dict[key]))
+                value.eval()
+        # teleop init
+        if teleop:
+            self.use_teleop = True
+            self.init_teleop()
 
     def test_env(self, output_path):
         # run 1000 steps
@@ -88,6 +105,36 @@ class LM_ENGINE:
     
     def save_state(self, output_path):
         pass
+
+    def init_teleop(self):
+        self.cap = cv2.VideoCapture(0)
+        self.hand_pose_estimator = MediapipeHandEstimator()
+        self.last_ee_pose = np.zeros(7)
+        self.last_finger_pose = np.zeros(20)  #FIXME:  to make it adaptive to different hand models
+
+    def read_from_teleop(self, frame_image):
+        joints_3d = self.hand_pose_estimator.predict_3d_joints(frame_image)
+        if len(joints_3d) < 3:
+            # scale with move_boundary
+            move_ee_pos = np.copy(self.last_ee_pose)
+            move_ee_pos[2] = 0.0  # fix z-axis
+            x_pos, y_pos = move_ee_pos[0:2]  # flip x, y
+            move_ee_pos[0:2] = [y_pos, -x_pos]
+            move_ee_pos[0:3] = move_ee_pos[0:3] * self.move_boundary_range + self.move_boundary_mid
+            print(f"Use last pose {move_ee_pos}.")
+            return move_ee_pos, self.last_finger_pose
+        else:
+            # rescale x, y to [-1, 1]
+            ee_pose_xyz = joints_3d[0:3] * 2.0 - 1.0
+            self.last_ee_pose[0:3] = ee_pose_xyz
+            move_ee_pos = np.copy(self.last_ee_pose)
+            move_ee_pos[2] = 0.0  # fix z-axis
+            x_pos, y_pos = move_ee_pos[0:2]  # flip x, y
+            move_ee_pos[0:2] = [y_pos, -x_pos]
+            move_ee_pos[0:3] = move_ee_pos[0:3] * self.move_boundary_range + self.move_boundary_mid
+            self.last_finger_pose = np.zeros(20)
+            print(f"Use new pose: {move_ee_pos}.")
+            return move_ee_pos, self.last_finger_pose
 
     def check(self, check_command, loc):
         # conduct checking
@@ -120,6 +167,8 @@ class LM_ENGINE:
         finished_rounds = torch.zeros(self.vec_env.num_envs).to(self.device)
 
         while True:
+            if self.use_teleop:
+                ret, frame_image = self.cap.read()
             with torch.no_grad():
                 if self.apply_reset:
                     current_obs = self.vec_env.reset()
@@ -135,7 +184,14 @@ class LM_ENGINE:
                     if command[0] == "MOVE":
                         action_list.append(action_dict[command[2]])
                         move_list.append(torch.tensor(command[1], dtype=torch.float32, device=self.device).repeat(self.vec_env.num_envs, 1))
-                        # switch to next stage
+                        # count into stage
+                        num_stage += 1
+                        check_list.append(torch.ones(self.vec_env.num_envs).to(self.device).to(torch.bool))
+                    elif command[0] == "TELEOP":
+                        move_action, finger_action = self.read_from_teleop(frame_image)
+                        action_list.append(torch.tensor(finger_action, dtype=torch.float32, device=self.device).repeat(self.vec_env.num_envs, 1))
+                        move_list.append(torch.tensor(move_action, dtype=torch.float32, device=self.device).repeat(self.vec_env.num_envs, 1))
+                        # count into stage
                         num_stage += 1
                         check_list.append(torch.ones(self.vec_env.num_envs).to(self.device).to(torch.bool))
                     elif command[0] == "CHECK":
@@ -152,15 +208,6 @@ class LM_ENGINE:
                 # step the vec_environment
                 next_obs, rews, dones, infos = self.vec_env.step(full_actions)
 
-                # conduct checking
-                # check_result_list = []
-                # for stage, stage_check_command in enumerate(check_list):
-                #     stage_check_result = torch.ones(self.vec_env.num_envs).to(self.device).to(torch.bool)
-                #     for check_command in stage_check_command:
-                #         stage_check_result = torch.logical_and(stage_check_result, self.check(check_command))
-                #     check_result_list.append(stage_check_result)
-                # check_result = torch.stack(check_result_list, dim=1)
-                # checks = check_result[torch.arange(self.vec_env.num_envs), stage]
                 # update stage
                 success = infos["successes"]
                 # stage = stage + success.to(torch.int64)  # proceed stage based success

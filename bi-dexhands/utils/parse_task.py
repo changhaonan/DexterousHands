@@ -21,6 +21,7 @@ from tasks.shadow_hand_swing_cup import ShadowHandSwingCup
 from tasks.shadow_hand_grasp_and_place import ShadowHandGraspAndPlace
 from tasks.shadow_hand_grasp_and_place_decouple import ShadowHandGraspAndPlaceDecouple
 from tasks.shadow_hand_grasp_and_place_single import ShadowHandGraspAndPlaceSingle
+from tasks.shadow_hand_grasp_and_place_v2_single import ShadowHandGraspAndPlaceV2Single
 from tasks.shadow_hand_scissors import ShadowHandScissors
 from tasks.shadow_hand_switch import ShadowHandSwitch
 from tasks.shadow_hand_pen import ShadowHandPen
