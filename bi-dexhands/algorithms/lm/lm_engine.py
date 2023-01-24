@@ -17,6 +17,12 @@ from algorithms.rl.ppo import ActorCritic
 from algorithms.lm.check_utils import *
 from utils.teleop.mediapipe_hand_pose import MediapipeHandEstimator
 
+# Pybind
+import sys
+pybind_path = os.path.join(os.path.dirname(__file__), "../../../build")
+sys.path.append(pybind_path)
+import finger_map
+
 
 class LM_ENGINE:
     # language maniulation engine
@@ -78,7 +84,8 @@ class LM_ENGINE:
     
     def init(self, init_command, test=False, teleop=False):
         # command init
-        assert init_command[0] == "INIT"
+        if init_command[0] != "INIT":
+            return
         move_boundary = init_command[1]
         move_boundary_low = np.array([move_boundary[0], move_boundary[2], move_boundary[4]])
         move_boundary_high = np.array([move_boundary[1], move_boundary[3], move_boundary[5]])
