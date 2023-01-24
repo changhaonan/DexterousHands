@@ -33,7 +33,7 @@ def parse_command_file(command_file):
     return command_list
 
 
-def test(program_name):
+def test(program_name, test_option=None):
     agent_index = get_AgentIndex(cfg)
     # parse vec task
     task, env = parse_task(args, cfg, cfg_train, sim_params, agent_index)
@@ -49,10 +49,8 @@ def test(program_name):
     # read command file
     command = parse_command_file(f"test/{program_name}.manip")
 
-    init_option = {"video_file" : "./data/teleop/IMG_6055.MOV"}
-    lm_engine.init(command[0], test=True, teleop_mode="video", other_args=init_option)
+    lm_engine.init(command[0], test=True, teleop_mode="video", other_args=test_option)
     lm_engine.run_command(command, 10, "./test/gym_states.pt")
-    # lm_engine.test_env("/home/robot-learning/Projects/DexterousHands/bi-dexhands/test/gym_states.pt")
 
 
 if __name__ == '__main__':
@@ -68,4 +66,5 @@ if __name__ == '__main__':
     # program_name = "grasp_place"
     # program_name = "grasp_place_v2"
     program_name = "teleop"
-    test(program_name=program_name)
+    test_option = {"video_file" : "./data/teleop/thumb.MOV"}
+    test(program_name=program_name, test_option=test_option)

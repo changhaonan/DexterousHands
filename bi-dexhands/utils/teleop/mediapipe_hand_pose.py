@@ -60,6 +60,10 @@ class MediapipeHandEstimator:
                         # self.mp_drawing.plot_landmarks(hand, self.mp_hands.HAND_CONNECTIONS, azimuth=5)
                     # Flip the image
                     image = cv2.flip(image, 1)
+                    # Resize the image until it height is 320
+                    vis_height = 320
+                    resize_scale = vis_height / image.shape[0]
+                    image = cv2.resize(image, None, fx=resize_scale, fy=resize_scale)
                     cv2.imshow("Hand pose estimate", image)
                     cv2.waitKey(15)
             return joints_3d
