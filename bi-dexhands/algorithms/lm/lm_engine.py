@@ -144,8 +144,8 @@ class LM_ENGINE:
             move_ee_pos[0:2] = [y_pos, -x_pos]
             move_ee_pos[0:3] = move_ee_pos[0:3] * self.move_boundary_range + self.move_boundary_mid
             # finger pose
-            finger_pose_16 = finger_map.retarget(joints_3d[3:])
-            self.last_finger_pose[0:16] = finger_pose_16
+            finger_pose_20 = finger_map.retarget(joints_3d[3:])
+            self.last_finger_pose[0:20] = finger_pose_20
             return move_ee_pos, self.last_finger_pose
 
     def check(self, check_command, loc):

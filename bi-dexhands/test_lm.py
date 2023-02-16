@@ -66,5 +66,5 @@ if __name__ == '__main__':
     # program_name = "grasp_place"
     # program_name = "grasp_place_v2"
     program_name = "teleop"
-    test_option = {"video_file" : "./data/teleop/thumb.MOV"}
+    test_option = {"video_file" : "./data/teleop/grasp.MOV"}
     test(program_name=program_name, test_option=test_option)

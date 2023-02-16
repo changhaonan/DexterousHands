@@ -180,34 +180,34 @@ void calculateMiddleAngles(double palm_in[], double mf_ee_in[], double mf_j1_in[
     }
     else if (wfing == 2)
     {
-        angleTotal[5] = theta_1;
-        angleTotal[6] = theta_2;
-        angleTotal[7] = theta_3;
-        angleTotal[8] = theta_4;
+        angleTotal[4] = theta_1;
+        angleTotal[5] = theta_2;
+        angleTotal[6] = theta_3;
+        angleTotal[7] = theta_4;
     }
     else if (wfing == 3)
     {
-        angleTotal[9] = theta_1;
-        angleTotal[10] = theta_2;
-        angleTotal[11] = theta_3;
-        angleTotal[12] = theta_4;
+        angleTotal[8] = theta_1;
+        angleTotal[9] = theta_2;
+        angleTotal[10] = theta_3;
+        angleTotal[11] = theta_4;
     }
     else if (wfing == 4)
     {
-        angleTotal[13] = theta_1;
-        angleTotal[14] = theta_2;
-        angleTotal[15] = theta_3;
-        angleTotal[16] = theta_4;
+        angleTotal[12] = theta_1;
+        angleTotal[13] = theta_2;
+        angleTotal[14] = theta_3;
+        angleTotal[15] = theta_4;
     }
     else if (wfing == 5)
     {
-        angleTotal[17] = theta_1;
-        angleTotal[18] = theta_2;
-        angleTotal[19] = theta_3;
-        angleTotal[20] = theta_4;
+        angleTotal[16] = theta_1;
+        angleTotal[17] = theta_2;
+        angleTotal[18] = theta_3;
+        angleTotal[19] = theta_4;
     }
+    angleTotal[20] = 180;
     angleTotal[21] = 180;
-    angleTotal[22] = 180;
 }
 
 // 63 and 16
@@ -222,7 +222,8 @@ py::array_t<double> retarget(py::array_t<double> input1)
     {
         insertHand[idx] = ptr1[idx];
     }
-    double *b = new double[16];
+    double *b = new double[20];
+    //double *c = new double[20];
 
     double angletotal2[23] = {0};
     // double insertHand[63] = {0.7165310382843018,0.5979897379875183,9.177697961604281e-07,0.7422736883163452,0.5436157584190369,-0.044752318412065506,0.7543326020240784,0.487891286611557,-0.0768086165189743,0.7886183857917786,0.45565834641456604,-0.10837665945291519,0.8233191967010498,0.4371103048324585,-0.1408051997423172,0.6559509038925171,0.408966064453125,-0.05339256301522255,0.6180155873298645,0.33005282282829285,-0.08918295800685883,0.5916488766670227,0.2830435037612915,-0.11348428577184677,0.566082239151001,0.24210862815380096,-0.1290198117494583,0.618839681148529,0.45195701718330383,-0.05433397740125656,0.551618218421936,0.3999546468257904,-0.09343953430652618,0.5054413080215454,0.3734526038169861,-0.1166536882519722,0.4668273329734802,0.3528480529785156,-0.12744450569152832,0.6054028868675232,0.5079873204231262,-0.05872764810919762,0.5599067211151123,0.4928794801235199,-0.10809823125600815,0.6045299768447876,0.5200718641281128,-0.11564552038908005,0.6425783038139343,0.5382210612297058,-0.10597866773605347,0.60940021276474,0.5668247938156128,-0.06639498472213745,0.5807815790176392,0.561757504940033,-0.10494503378868103,0.610853374004364,0.5767804384231567,-0.10400904715061188,0.6398797035217285,0.585105299949646,-0.09274785220623016};
@@ -327,7 +328,8 @@ py::array_t<double> retarget(py::array_t<double> input1)
     calculateMiddleAngles(palm, middleFingerEE, middleFingerJ1, middleFingerJ2, middleFingerJ3, angletotal2, 3);
     calculateMiddleAngles(palm, ringFingerEE, ringFingerJ1, ringFingerJ2, ringFingerJ3, angletotal2, 4);
     calculateMiddleAngles(palm, PinkyFingerEE, PinkyFingerJ1, PinkyFingerJ2, PinkyFingerJ3, angletotal2, 5);
-
+    
+    /*
     b[0] = angletotal2[8];
     b[1] = angletotal2[7];
     b[2] = angletotal2[6];
@@ -344,24 +346,75 @@ py::array_t<double> retarget(py::array_t<double> input1)
     b[13] = angletotal2[2];
     b[14] = angletotal2[1];
     b[15] = angletotal2[0];
+    */
+
+    b[0] = angletotal2[7];
+    b[1] = angletotal2[6];
+    b[2] = angletotal2[5];
+    b[3] = angletotal2[4];
+    
+    b[4] = 0;
+    b[5] = 0;
+    b[6] = 0;
+    b[7] = 0;
+    b[8] = 0;
+    b[9] = 0;
+    b[10] = 0;
+    b[11] = 0;
+    b[12] = 0;
+    b[13] = 0;
+    b[14] = 0;
+    b[15] = 0;
+    b[16] = 0;
+    b[17] = 0;
+    b[18] = 0;
+    b[19] = 0;
+    b[20] = 0;
+    /*
+    b[0] = angletotal2[7];
+    b[1] = angletotal2[6];
+    b[2] = angletotal2[4];
+    b[3] = angletotal2[5];
+    b[4] = angletotal2[11];
+    b[5] = angletotal2[10];
+    b[6] = angletotal2[8];
+    b[7] = angletotal2[9];
+    b[8] = angletotal2[15];
+    b[9] = angletotal2[14];
+    b[10] = angletotal2[12];
+    b[11] = angletotal2[13];
+    b[12] = angletotal2[19];
+    b[13] = angletotal2[18];
+    b[14] = angletotal2[16];
+    b[15] = angletotal2[17];
+    b[16] = 180;
+    b[17] = angletotal2[3];
+    b[18] = angletotal2[2];
+    b[19] = angletotal2[1];
+    b[20] = angletotal2[0];
+    */
 
     YAML::Node root = YAML::LoadFile("./cfg/teleop/teleop_config.yaml");
-    for (int i = 0; i < 16; i++)
+    for (int i = 0; i < 20; i++) // vertical angle to 180 and horizontal to 10
     {
-        if (i == 0 || i == 4 || i == 8 || i == 12)
+        if (i == 3 || i == 7 || i == 11) // || i == 17
         {
-            b[i] = b[i] - 180;
+            //b[i] = b[i] + 180;
+            //b[i] = b[i] - 180;
         }
         else
         {
-            b[i] = (180 - b[i]);
+            //b[i] = (180 - b[i]);
         }
     }
-
-    for (int i = 0; i < 16; i++)
+    for (int i = 0; i<20; i++) {
+        cout << b[i] << " " << endl;
+    }
+    
+    for (int i = 0; i < 20; i++) // set scale and offset, if larger than range set to bound
     {
-        b[i] = (b[i] * root["scale"][i].as<double>()) + (b[i] * root["offset"][i].as<double>());
-        if (i == 0 || i == 4 || i == 8 || i == 12)
+        b[i] = (b[i] * root["scale"][i].as<double>()) + root["offset"][i].as<double>();
+        if (i == 2 || i == 6 || i == 10 || i == 14) // || i == 17 
         {
             if (b[i] > 10)
             {
@@ -371,35 +424,67 @@ py::array_t<double> retarget(py::array_t<double> input1)
             {
                 b[i] = -10;
             }
-            b[i] = b[i] + 180; // undoing first loop
+            //b[i] = b[i] + 180; // undoing first loop
         }
         else
         {
-            if (b[i] > 90)
+            if (b[i] > 180)
             {
-                b[i] = 90;
+                b[i] = 180;
             }
-            b[i] = -b[i] + 180;
+            //b[i] = -b[i] + 180;
         }
     }
 
-    for (int i = 0; i < 16; i++)
-    {
-        if (i == 0 || i == 4 || i == 8 || i == 12)
+    cout << endl;
+    for (int i = 0; i<20; i++) {
+        cout << b[i] << " " << endl;
+    }
+    cout << endl;
+
+    for (int i = 0; i < 20; i++)
+    {   
+        if (i == 2 || i == 6 || i == 10 || i == 14) // || i == 17
         {
-            b[i] = (abs((b[i] - 170) / 20) * ((root["max_bounds"][i].as<double>()) - root["min_bounds"][i].as<double>())) + root["min_bounds"][i].as<double>();
+            b[i] = (abs((b[i] - 10) / 20) * ((root["max_bounds"][i].as<double>()) - root["min_bounds"][i].as<double>())) + root["min_bounds"][i].as<double>();
         }
+        
         else
         {
-            b[i] = (((180 - b[i]) / 90) * ((root["max_bounds"][i].as<double>()) - root["min_bounds"][i].as<double>())) + root["min_bounds"][i].as<double>();
+            b[i] = (((180 - b[i]) / 180) * ((root["max_bounds"][i].as<double>()) - root["min_bounds"][i].as<double>())) + root["min_bounds"][i].as<double>();
         }
     }
+    for (int i = 0; i<20; i++) {
+        cout << b[i] << " " << endl;
+    }
+    b[0] = 0;
+    b[1] = 1;
+    b[2] = 0; //knuckle (horizontal: 1-> left)
+    b[3] = 0; //knuckle (vertical: 1 -> curved)
+    b[4] = 0; //index second joint
+    b[5] = -1; //middle finger horizxontal
+    b[6] = 0;
+    b[7] = 0;
+    b[8] = 0;
+    b[9] = 0;
+    b[10] = 0;
+    b[11] = 0;
+    b[12] = 0;
+    b[13] = 0;
+    b[14] = 0;
+    b[15] = 0;
+    b[16] = 0;
+    b[17] = 0;
+    b[18] = 0;
+    b[19] = 0;
+    b[20] = 0;
     py::capsule free_when_done(b, [](void *f)
-                               {
+        {
             double *b = reinterpret_cast<double *>(f);
-            delete[] b; });
+            delete[] b; 
+        });
 
-    return py::array_t<double>({16}, {8}, b, free_when_done);
+    return py::array_t<double>({20}, {8}, b, free_when_done);
 }
 
 PYBIND11_MODULE(finger_map, m)
