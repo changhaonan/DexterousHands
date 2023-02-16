@@ -779,14 +779,18 @@ class RobotiqGraspAndPlaceSingle(BaseTask):
         self.compute_reward(self.actions)
 
         # visualize the goal
-        for i in range(self.num_envs):
-            if self.action_type == "hand_only":
-                # move goal
-                draw_6D_pose(
-                    self.gym,
-                    self.viewer,
-                    self.envs[i],
-                    self.goal_right_move[i, :3],
-                    self.goal_right_move[i, 3:7],
-                    color=(0, 1, 0),
-                )
+        if self.viewer and self.debug_viz:
+            # draw axes on target object
+            self.gym.clear_lines(self.viewer)
+            self.gym.refresh_rigid_body_state_tensor(self.sim)
+            for i in range(self.num_envs):
+                if self.action_type == "hand_only":
+                    # move goal
+                    draw_6D_pose(
+                        self.gym,
+                        self.viewer,
+                        self.envs[i],
+                        self.goal_right_move[i, :3],
+                        self.goal_right_move[i, 3:7],
+                        color=(0, 1, 0),
+                    )
