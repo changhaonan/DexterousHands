@@ -1,6 +1,6 @@
 # if given, will override the device setting in gym. 
 env: 
-  env_name: "shadow_hand_grasp_and_place_v2_single"
+  env_name: "robotiq_grasp_and_place_single"
   numEnvs: 4096
   envSpacing: 1.5
   episodeLength: 500
@@ -58,8 +58,6 @@ env:
 
   asset:
     assetRoot: "../assets"
-    # assetFileName: "mjcf/open_ai_assets/hand/shadow_hand.xml"
-    # assetFileName: "urdf/robotiq/robotiq-3f-gripper_mesh.urdf"
     assetFileName: "urdf/robotiq/robotiq-3f-gripper_articulated.urdf"
     assetFileNameBlock: "urdf/objects/cube_multicolor.urdf"
     assetFileNameEgg: "mjcf/open_ai_assets/hand/egg.xml"

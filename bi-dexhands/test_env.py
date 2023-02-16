@@ -7,6 +7,7 @@ import datetime
 
 # tasks
 from tasks.shadow_hand_grasp_and_place_v2_single import ShadowHandGraspAndPlaceV2Single
+from tasks.robotiq_grasp_and_place_single import RobotiqGraspAndPlaceSingle
 from tasks.hand_base.vec_task import (
     VecTaskCPU,
     VecTaskGPU,
@@ -54,9 +55,10 @@ if __name__ == "__main__":
     # run
     while True:
         # action
-        action = torch.zeros(
-            [env.num_envs, env.num_actions], dtype=torch.float32, device=args.rl_device
+        action = -torch.ones(
+            [env.num_envs, env.num_actions + 7], dtype=torch.float32, device=args.rl_device
         )
+        action[-7:] = 0.0
         # step
         next_obs, reward, done, info = env.step(action)
         # update
