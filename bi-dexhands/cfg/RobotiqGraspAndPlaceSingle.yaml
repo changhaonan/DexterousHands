@@ -28,7 +28,7 @@ env:
 
   distRewardScale: 4.0
   transition_scale: 1.0
-  orientation_scale: 0.5
+  orientation_scale: 1.0
   rotRewardScale: 0.1
   rotEps: 0.1
   actionPenaltyScale: -0.0002

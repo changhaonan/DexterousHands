@@ -4,6 +4,7 @@ from ast import arg
 import numpy as np
 import random
 import datetime
+from scipy.spatial.transform import Rotation as R
 
 # tasks
 from tasks.shadow_hand_grasp_and_place_v2_single import ShadowHandGraspAndPlaceV2Single
@@ -55,10 +56,17 @@ if __name__ == "__main__":
     # run
     while True:
         # action
-        action = -torch.ones(
-            [env.num_envs, env.num_actions + 7], dtype=torch.float32, device=args.rl_device
-        )
-        action[-7:] = 0.0
+        action = -0.5 * torch.ones([env.num_envs, env.num_actions + 7], dtype=torch.float32, device=args.rl_device)
+        # set pos
+        action[:, -7] = 0.0
+        action[:, -6] = 0.0
+        action[:, -5] = 1.5
+        # set rot: rotate 90 degree around y axis and then rotate 10 degree around z axis
+        rot1 = R.from_euler("y", 90, degrees=True)
+        rot2 = R.from_euler("z", 30, degrees=True)
+        rot = rot1 * rot2
+        action[:, -4:] = torch.from_numpy(rot.as_quat())
+
         # step
         next_obs, reward, done, info = env.step(action)
         # update
