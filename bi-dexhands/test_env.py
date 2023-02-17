@@ -82,8 +82,8 @@ class TeleopAgent:
                 move_ee_rot = np.array([0.0, 0.0, 0.0, 1.0])
             move_ee = np.hstack([move_ee_pos, move_ee_rot])
             # finger pose
-            # finger_pose_full = finger_map.retarget(joints_3d[3:])
-            finger_pose_full = -np.ones([self.num_finger_action])
+            finger_pose_full = finger_map.retarget(joints_3d[3:])
+            # finger_pose_full = -np.ones([self.num_finger_action])
             self.last_finger_pose = finger_pose_full[0:self.num_finger_action]
             return move_ee, self.last_finger_pose
 
@@ -124,7 +124,8 @@ if __name__ == "__main__":
     hand_pose_estimator = MediapipeHandEstimator()
     rot1 = R.from_euler("y", 90, degrees=True)
     rot2 = R.from_euler("z", 30, degrees=True)
-    rot = rot1 * rot2
+    rot3 = R.from_euler("x", -90, degrees=True)
+    rot = rot1 * rot2 * rot3
     teleop_agent = TeleopAgent(hand_pose_estimator, env.num_actions, pre_ee_rot=rot.as_quat())
 
     # reset
@@ -152,10 +153,6 @@ if __name__ == "__main__":
             action[:, -7] = 0.0
             action[:, -6] = 0.0
             action[:, -5] = 1.5
-            # set rot: rotate 90 degree around y axis and then rotate 10 degree around z axis
-            rot1 = R.from_euler("y", 90, degrees=True)
-            rot2 = R.from_euler("z", 30, degrees=True)
-            rot = rot1 * rot2
             action[:, -4:] = torch.from_numpy(rot.as_quat())
 
         # step

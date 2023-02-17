@@ -58,9 +58,7 @@ env:
 
   asset:
     assetRoot: "../assets"
-    # assetFileName: "mjcf/open_ai_assets/hand/shadow_hand.xml"
-    # assetFileName: "urdf/robotiq/robotiq-3f-gripper_mesh.urdf"
-    assetFileName: "urdf/robotiq/robotiq-3f-gripper_articulated.urdf"
+    assetFileName: "mjcf/open_ai_assets/hand/shadow_hand.xml"
     assetFileNameBlock: "urdf/objects/cube_multicolor.urdf"
     assetFileNameEgg: "mjcf/open_ai_assets/hand/egg.xml"
     assetFileNamePen: "mjcf/open_ai_assets/hand/pen.xml"

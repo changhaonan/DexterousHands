@@ -347,30 +347,7 @@ py::array_t<double> retarget(py::array_t<double> input1)
     b[14] = angletotal2[1];
     b[15] = angletotal2[0];
     */
-
-    b[0] = angletotal2[7];
-    b[1] = angletotal2[6];
-    b[2] = angletotal2[5];
-    b[3] = angletotal2[4];
     
-    b[4] = 0;
-    b[5] = 0;
-    b[6] = 0;
-    b[7] = 0;
-    b[8] = 0;
-    b[9] = 0;
-    b[10] = 0;
-    b[11] = 0;
-    b[12] = 0;
-    b[13] = 0;
-    b[14] = 0;
-    b[15] = 0;
-    b[16] = 0;
-    b[17] = 0;
-    b[18] = 0;
-    b[19] = 0;
-    b[20] = 0;
-    /*
     b[0] = angletotal2[7];
     b[1] = angletotal2[6];
     b[2] = angletotal2[4];
@@ -392,7 +369,19 @@ py::array_t<double> retarget(py::array_t<double> input1)
     b[18] = angletotal2[2];
     b[19] = angletotal2[1];
     b[20] = angletotal2[0];
-    */
+    
+    b[2] = 180;
+    b[1] = 180;
+    b[5] = 180;
+    b[6] = 180;
+
+    //primary joints
+    b[8] = angletotal2[10];
+    b[7] = angletotal2[11];
+    b[4] = angletotal2[6];
+    b[3] = angletotal2[7];
+    b[0] = angletotal2[2]; //thumb joint
+    cout << b[18] << endl;
 
     YAML::Node root = YAML::LoadFile("./cfg/teleop/teleop_config.yaml");
     for (int i = 0; i < 20; i++) // vertical angle to 180 and horizontal to 10
@@ -406,9 +395,6 @@ py::array_t<double> retarget(py::array_t<double> input1)
         {
             //b[i] = (180 - b[i]);
         }
-    }
-    for (int i = 0; i<20; i++) {
-        cout << b[i] << " " << endl;
     }
     
     for (int i = 0; i < 20; i++) // set scale and offset, if larger than range set to bound
@@ -436,11 +422,6 @@ py::array_t<double> retarget(py::array_t<double> input1)
         }
     }
 
-    cout << endl;
-    for (int i = 0; i<20; i++) {
-        cout << b[i] << " " << endl;
-    }
-    cout << endl;
 
     for (int i = 0; i < 20; i++)
     {   
@@ -454,9 +435,7 @@ py::array_t<double> retarget(py::array_t<double> input1)
             b[i] = (((180 - b[i]) / 180) * ((root["max_bounds"][i].as<double>()) - root["min_bounds"][i].as<double>())) + root["min_bounds"][i].as<double>();
         }
     }
-    for (int i = 0; i<20; i++) {
-        cout << b[i] << " " << endl;
-    }
+    /*
     b[0] = 0;
     b[1] = 1;
     b[2] = 0; //knuckle (horizontal: 1-> left)
@@ -478,6 +457,7 @@ py::array_t<double> retarget(py::array_t<double> input1)
     b[18] = 0;
     b[19] = 0;
     b[20] = 0;
+    */
     py::capsule free_when_done(b, [](void *f)
         {
             double *b = reinterpret_cast<double *>(f);
