@@ -3,6 +3,106 @@ import math
 import yaml
 
 
+def human_hardcode_config():
+    # hard-code cnfoig
+    joint_scale = np.ones(23)
+    joint_offset = np.zeros(23)
+    joint_mins = -np.ones(23) * 180
+    joint_maxs = np.ones(23) * 180
+    # Thumb
+    # J3
+    joint_mins[0] = 150
+    joint_maxs[0] = 160
+    # J2
+    joint_mins[1] = 150
+    joint_maxs[1] = 160
+    # J1
+    joint_mins[2] = 150
+    joint_maxs[2] = 160
+    # J0
+    joint_mins[3] = -2
+    joint_maxs[3] = 2
+
+    # Index
+    # J3
+    joint_mins[5] = 120
+    joint_maxs[5] = 170
+    # J2
+    joint_mins[6] = 120
+    joint_maxs[6] = 170
+    # J1
+    joint_mins[7] = 120
+    joint_maxs[7] = 170
+    # J0
+    joint_mins[8] = -2
+    joint_maxs[8] = 2
+
+    # Middle
+    # J3
+    joint_mins[9] = 120
+    joint_maxs[9] = 170
+    # J2
+    joint_mins[10] = 120
+    joint_maxs[10] = 170
+    # J1
+    joint_mins[11] = 120
+    joint_maxs[11] = 170
+    # J0
+    joint_mins[12] = -2
+    joint_maxs[12] = 2
+
+    return joint_scale, joint_offset, joint_mins, joint_maxs
+
+
+def robotiq_hardcode_config():
+    # hard-code cnfoig
+    joint_scale = -np.ones(16)
+    joint_offset = np.zeros(16)
+    joint_mins = -np.ones(16)
+    joint_maxs = np.ones(16)
+
+    # Thumb
+    # J1
+    joint_mins[0] = -1
+    joint_maxs[0] = -0.3
+    # J2
+    joint_mins[1] = -1
+    joint_maxs[1] = -0.3
+    # J3
+    joint_mins[2] = -1
+    joint_maxs[2] = -0.3
+
+    # Index
+    # J0
+    joint_mins[3] = -1
+    joint_maxs[3] = -0.3
+    # J1
+    joint_mins[4] = -1
+    joint_maxs[4] = -0.3
+    # J2
+    joint_mins[5] = -1
+    joint_maxs[5] = -0.3
+    # J3
+    joint_mins[6] = -1
+    joint_maxs[6] = -0.90
+
+    # Middle
+    # J0
+    joint_mins[7] = -1
+    joint_maxs[7] = -0.3
+    # J1
+    joint_mins[8] = -1
+    joint_maxs[8] = -0.3
+    # J2
+    joint_mins[9] = -1
+    joint_maxs[9] = -0.3
+    # J3
+    joint_mins[10] = -1
+    joint_maxs[10] = -0.90
+
+    return joint_scale, joint_offset, joint_mins, joint_maxs
+
+
 def unit_vector(vector):
     """Returns the unit vector of the vector."""
     return vector / np.linalg.norm(vector)
@@ -167,10 +267,10 @@ def calculateMiddleAngles(palm_in, mf_ee_in, mf_j1_in, mf_j2_in, mf_j3_in, angle
     return angleTotal
 
 
-def retarget(insertHand):
-    if insertHand.shape[0] != 63:
+def retarget(human_joint_3d, robot_type="robotiq"):
+    if human_joint_3d.shape[0] != 63:
         return None
-    angletotal2 = np.zeros(23)
+    human_joint = np.zeros(23)
 
     # assign palm
     palm = np.zeros(3)
@@ -201,127 +301,115 @@ def retarget(insertHand):
     PinkyFingerJ2 = np.zeros(3)
     PinkyFingerJ3 = np.zeros(3)
 
-    palm[0] = insertHand[0]
-    palm[1] = insertHand[1]
-    palm[2] = insertHand[2]
-    ThumbEE[0] = insertHand[12]
-    ThumbEE[1] = insertHand[13]
-    ThumbEE[2] = insertHand[14]
-    ThumbJ1[0] = insertHand[9]
-    ThumbJ1[1] = insertHand[10]
-    ThumbJ1[2] = insertHand[11]
-    ThumbJ2[0] = insertHand[6]
-    ThumbJ2[1] = insertHand[7]
-    ThumbJ2[2] = insertHand[8]
-    ThumbJ3[0] = insertHand[3]
-    ThumbJ3[1] = insertHand[4]
-    ThumbJ3[2] = insertHand[5]
+    palm[0] = human_joint_3d[0]
+    palm[1] = human_joint_3d[1]
+    palm[2] = human_joint_3d[2]
+    ThumbEE[0] = human_joint_3d[12]
+    ThumbEE[1] = human_joint_3d[13]
+    ThumbEE[2] = human_joint_3d[14]
+    ThumbJ1[0] = human_joint_3d[9]
+    ThumbJ1[1] = human_joint_3d[10]
+    ThumbJ1[2] = human_joint_3d[11]
+    ThumbJ2[0] = human_joint_3d[6]
+    ThumbJ2[1] = human_joint_3d[7]
+    ThumbJ2[2] = human_joint_3d[8]
+    ThumbJ3[0] = human_joint_3d[3]
+    ThumbJ3[1] = human_joint_3d[4]
+    ThumbJ3[2] = human_joint_3d[5]
 
-    middleFingerEE[0] = insertHand[36]
-    middleFingerEE[1] = insertHand[37]
-    middleFingerEE[2] = insertHand[38]
-    middleFingerJ1[0] = insertHand[33]
-    middleFingerJ1[1] = insertHand[34]
-    middleFingerJ1[2] = insertHand[35]
-    middleFingerJ2[0] = insertHand[30]
-    middleFingerJ2[1] = insertHand[31]
-    middleFingerJ2[2] = insertHand[32]
-    middleFingerJ3[0] = insertHand[27]
-    middleFingerJ3[1] = insertHand[28]
-    middleFingerJ3[2] = insertHand[29]
+    middleFingerEE[0] = human_joint_3d[36]
+    middleFingerEE[1] = human_joint_3d[37]
+    middleFingerEE[2] = human_joint_3d[38]
+    middleFingerJ1[0] = human_joint_3d[33]
+    middleFingerJ1[1] = human_joint_3d[34]
+    middleFingerJ1[2] = human_joint_3d[35]
+    middleFingerJ2[0] = human_joint_3d[30]
+    middleFingerJ2[1] = human_joint_3d[31]
+    middleFingerJ2[2] = human_joint_3d[32]
+    middleFingerJ3[0] = human_joint_3d[27]
+    middleFingerJ3[1] = human_joint_3d[28]
+    middleFingerJ3[2] = human_joint_3d[29]
 
-    indexFingerEE[0] = insertHand[24]
-    indexFingerEE[1] = insertHand[25]
-    indexFingerEE[2] = insertHand[26]
-    indexFingerJ1[0] = insertHand[21]
-    indexFingerJ1[1] = insertHand[22]
-    indexFingerJ1[2] = insertHand[23]
-    indexFingerJ2[0] = insertHand[18]
-    indexFingerJ2[1] = insertHand[19]
-    indexFingerJ2[2] = insertHand[20]
-    indexFingerJ3[0] = insertHand[15]
-    indexFingerJ3[1] = insertHand[16]
-    indexFingerJ3[2] = insertHand[17]
+    indexFingerEE[0] = human_joint_3d[24]
+    indexFingerEE[1] = human_joint_3d[25]
+    indexFingerEE[2] = human_joint_3d[26]
+    indexFingerJ1[0] = human_joint_3d[21]
+    indexFingerJ1[1] = human_joint_3d[22]
+    indexFingerJ1[2] = human_joint_3d[23]
+    indexFingerJ2[0] = human_joint_3d[18]
+    indexFingerJ2[1] = human_joint_3d[19]
+    indexFingerJ2[2] = human_joint_3d[20]
+    indexFingerJ3[0] = human_joint_3d[15]
+    indexFingerJ3[1] = human_joint_3d[16]
+    indexFingerJ3[2] = human_joint_3d[17]
 
-    ringFingerEE[0] = insertHand[48]
-    ringFingerEE[1] = insertHand[49]
-    ringFingerEE[2] = insertHand[50]
-    ringFingerJ1[0] = insertHand[45]
-    ringFingerJ1[1] = insertHand[46]
-    ringFingerJ1[2] = insertHand[47]
-    ringFingerJ2[0] = insertHand[42]
-    ringFingerJ2[1] = insertHand[43]
-    ringFingerJ2[2] = insertHand[44]
-    ringFingerJ3[0] = insertHand[39]
-    ringFingerJ3[1] = insertHand[40]
-    ringFingerJ3[2] = insertHand[41]
+    ringFingerEE[0] = human_joint_3d[48]
+    ringFingerEE[1] = human_joint_3d[49]
+    ringFingerEE[2] = human_joint_3d[50]
+    ringFingerJ1[0] = human_joint_3d[45]
+    ringFingerJ1[1] = human_joint_3d[46]
+    ringFingerJ1[2] = human_joint_3d[47]
+    ringFingerJ2[0] = human_joint_3d[42]
+    ringFingerJ2[1] = human_joint_3d[43]
+    ringFingerJ2[2] = human_joint_3d[44]
+    ringFingerJ3[0] = human_joint_3d[39]
+    ringFingerJ3[1] = human_joint_3d[40]
+    ringFingerJ3[2] = human_joint_3d[41]
 
-    PinkyFingerEE[0] = insertHand[60]
-    PinkyFingerEE[1] = insertHand[61]
-    PinkyFingerEE[2] = insertHand[62]
-    PinkyFingerJ1[0] = insertHand[57]
-    PinkyFingerJ1[1] = insertHand[58]
-    PinkyFingerJ1[2] = insertHand[59]
-    PinkyFingerJ2[0] = insertHand[54]
-    PinkyFingerJ2[1] = insertHand[55]
-    PinkyFingerJ2[2] = insertHand[56]
-    PinkyFingerJ3[0] = insertHand[51]
-    PinkyFingerJ3[1] = insertHand[52]
-    PinkyFingerJ3[2] = insertHand[53]
+    PinkyFingerEE[0] = human_joint_3d[60]
+    PinkyFingerEE[1] = human_joint_3d[61]
+    PinkyFingerEE[2] = human_joint_3d[62]
+    PinkyFingerJ1[0] = human_joint_3d[57]
+    PinkyFingerJ1[1] = human_joint_3d[58]
+    PinkyFingerJ1[2] = human_joint_3d[59]
+    PinkyFingerJ2[0] = human_joint_3d[54]
+    PinkyFingerJ2[1] = human_joint_3d[55]
+    PinkyFingerJ2[2] = human_joint_3d[56]
+    PinkyFingerJ3[0] = human_joint_3d[51]
+    PinkyFingerJ3[1] = human_joint_3d[52]
+    PinkyFingerJ3[2] = human_joint_3d[53]
 
-    angletotal2 = calculateMiddleAngles(palm, ThumbEE, ThumbJ1, ThumbJ2, ThumbJ3, angletotal2, 1)
-    angletotal2 = calculateMiddleAngles(palm, indexFingerEE, indexFingerJ1, indexFingerJ2, indexFingerJ3, angletotal2, 2)
-    angletotal2 = calculateMiddleAngles(palm, middleFingerEE, middleFingerJ1, middleFingerJ2, middleFingerJ3, angletotal2, 3)
-    angletotal2 = calculateMiddleAngles(palm, ringFingerEE, ringFingerJ1, ringFingerJ2, ringFingerJ3, angletotal2, 4)
-    angletotal2 = calculateMiddleAngles(palm, PinkyFingerEE, PinkyFingerJ1, PinkyFingerJ2, PinkyFingerJ3, angletotal2, 5)
+    # Calculate human joint angles
+    human_joint = calculateMiddleAngles(palm, ThumbEE, ThumbJ1, ThumbJ2, ThumbJ3, human_joint, 1)
+    human_joint = calculateMiddleAngles(palm, indexFingerEE, indexFingerJ1, indexFingerJ2, indexFingerJ3, human_joint, 2)
+    human_joint = calculateMiddleAngles(palm, middleFingerEE, middleFingerJ1, middleFingerJ2, middleFingerJ3, human_joint, 3)
+    human_joint = calculateMiddleAngles(palm, ringFingerEE, ringFingerJ1, ringFingerJ2, ringFingerJ3, human_joint, 4)
+    human_joint = calculateMiddleAngles(palm, PinkyFingerEE, PinkyFingerJ1, PinkyFingerJ2, PinkyFingerJ3, human_joint, 5)
 
-    b = np.zeros(16)
-    b[0] = angletotal2[8]
-    b[1] = angletotal2[7]
-    b[2] = angletotal2[6]
-    b[3] = angletotal2[5]
-    b[4] = angletotal2[12]
-    b[5] = angletotal2[11]
-    b[6] = angletotal2[10]
-    b[7] = angletotal2[9]
-    b[8] = angletotal2[16]
-    b[9] = angletotal2[15]
-    b[10] = angletotal2[14]
-    b[11] = angletotal2[13]
-    b[12] = angletotal2[3]
-    b[13] = angletotal2[2]
-    b[14] = angletotal2[1]
-    b[15] = angletotal2[0]
+    # Hardcode config
+    joint_scale, joint_offset, joint_mins, joint_maxs = human_hardcode_config()
 
-    # hard-code cnfoig
-    joint_scale = np.ones(16)
-    joint_offset = np.zeros(16)
-    joint_mins = -np.ones(16)
-    joint_maxs = np.ones(16)
-
+    # Normalize for rotation angle
     for i in range(16):
-        if (i == 0) or (i == 4) or (i == 8) or (i == 12):
-            b[i] = b[i] - 180
-        else:
-            b[i] = 180 - b[i]
+        if i == 8 or i == 12 or i == 3:
+            human_joint[i] = 0
 
-    for i in range(16):
-        b[i] = (b[i] * joint_scale[i]) + (b[i] * joint_offset[i])
-        if (i == 0) or (i == 4) or (i == 8) or (i == 12):
-            if b[i] > 10:
-                b[i] = 10
-            elif b[i] < -10:
-                b[i] = -10
-            else:
-                b[i] = b[i] + 180
-        else:
-            if b[i] > 90:
-                b[i] = 90
-            b[i] = -b[i] + 180
+    # Scale it & clip it
+    human_joint_clip = np.clip(human_joint * joint_scale + joint_offset, joint_mins, joint_maxs)
+    # Normalize to -1 to 1
+    human_joint_norm = (human_joint_clip - joint_mins) / (joint_maxs - joint_mins) * 2 - 1
 
-    for i in range(16):
-        if (i == 0) or (i == 4) or (i == 8) or (i == 12):
-            b[i] = (abs((b[i] - 170) / 20) * (joint_maxs[i]) - joint_mins[i]) + joint_mins[i]
-        else:
-            b[i] = (((180 - b[i]) / 90) * (joint_maxs[i]) - joint_mins[i]) + joint_mins[i]
-    return b
+    print("thumb: ", human_joint[0], ", norm: ", human_joint_norm[0])
+    if robot_type == "robotiq":
+        # Remapping to robot joint angles
+        robot_joint = -np.ones(16)
+        # Thumb: J3 is the most reponsing joint
+        robot_joint[0] = human_joint_norm[5]
+        robot_joint[1] = human_joint_norm[5]
+        robot_joint[2] = human_joint_norm[5]
+        # Index
+        robot_joint[3] = human_joint_norm[5]
+        robot_joint[4] = human_joint_norm[5]
+        robot_joint[5] = human_joint_norm[5]
+        robot_joint[6] = human_joint_norm[5]
+        # Middle
+        robot_joint[7] = human_joint_norm[5]
+        robot_joint[8] = human_joint_norm[5]
+        robot_joint[9] = human_joint_norm[5]
+        robot_joint[10] = human_joint_norm[5]
+
+        joint_scale, joint_offset, joint_mins, joint_maxs = robotiq_hardcode_config()
+        robot_joint_clip = np.clip(robot_joint * joint_scale + joint_offset, joint_mins, joint_maxs)
+        return robot_joint_clip
+    else:
+        raise ValueError("Unknown robot type!")
