@@ -34,9 +34,10 @@ from utils.teleop.mediapipe_hand_pose import MediapipeHandEstimator
 import sys
 import os
 
-pybind_path = os.path.join(os.path.dirname(__file__), "../build")
-sys.path.append(pybind_path)
-import finger_map
+# pybind_path = os.path.join(os.path.dirname(__file__), "../build")
+# sys.path.append(pybind_path)
+# import finger_map
+from finger_map import retarget
 
 
 class TeleopAgent:
@@ -82,9 +83,9 @@ class TeleopAgent:
                 move_ee_rot = np.array([0.0, 0.0, 0.0, 1.0])
             move_ee = np.hstack([move_ee_pos, move_ee_rot])
             # finger pose
-            finger_pose_full = finger_map.retarget(joints_3d[3:])
-            # finger_pose_full = -np.ones([self.num_finger_action])
-            self.last_finger_pose = finger_pose_full[0:self.num_finger_action]
+            finger_pose_full = retarget(joints_3d)
+            if finger_pose_full is not None:
+                self.last_finger_pose = finger_pose_full[0 : self.num_finger_action]
             return move_ee, self.last_finger_pose
 
 

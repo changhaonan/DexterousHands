@@ -11,9 +11,10 @@ from utils.parse_task import parse_task
 from algorithms.lm.lm_engine import LM_ENGINE
 
 model_dict = {
-    "RELEASE" : "logs/ShadowHandGraspAndPlaceSingle/ppo/ppo_seed-1/model_release.pt",
-    "GRASP" : "logs/ShadowHandGraspAndPlaceSingle/ppo/ppo_seed-1/model_grasp.pt"
+    "RELEASE": "logs/ShadowHandGraspAndPlaceSingle/ppo/ppo_seed-1/model_release.pt",
+    "GRASP": "logs/ShadowHandGraspAndPlaceSingle/ppo/ppo_seed-1/model_grasp.pt",
 }
+
 
 def parse_command_file(command_file):
     command_list = []
@@ -26,7 +27,7 @@ def parse_command_file(command_file):
             # check line list and convert number to float
             for i, word in enumerate(line_list):
                 if word.startswith("("):
-                    number_f = [float(number) for number in word[1:-1].split(",")] 
+                    number_f = [float(number) for number in word[1:-1].split(",")]
                     line_list[i] = number_f
 
             command_list.append(line_list)
@@ -37,15 +38,17 @@ def test(program_name, test_option=None):
     agent_index = get_AgentIndex(cfg)
     # parse vec task
     task, env = parse_task(args, cfg, cfg_train, sim_params, agent_index)
-    lm_engine = LM_ENGINE(vec_env=env,
-                        cfg_train = cfg_train,
-                        device=env.rl_device,
-                        model_dict=model_dict,
-                        log_dir=logdir,
-                        is_testing=True,
-                        print_log=True,
-                        apply_reset=False,
-                        asymmetric=(env.num_states > 0))
+    lm_engine = LM_ENGINE(
+        vec_env=env,
+        cfg_train=cfg_train,
+        device=env.rl_device,
+        model_dict=model_dict,
+        log_dir=logdir,
+        is_testing=True,
+        print_log=True,
+        apply_reset=False,
+        asymmetric=(env.num_states > 0),
+    )
     # read command file
     command = parse_command_file(f"test/{program_name}.manip")
 
@@ -53,18 +56,18 @@ def test(program_name, test_option=None):
     lm_engine.run_command(command, 10, "./test/gym_states.pt")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     set_np_formatting()
     args = get_args()
     cfg, cfg_train, logdir = load_cfg(args)
     sim_params = parse_sim_params(args, cfg, cfg_train)
     set_seed(cfg_train.get("seed", -1), cfg_train.get("torch_deterministic", False))
-    
+
     # start test
     # program_name = "grasp"
     # program_name = "release"
     # program_name = "grasp_place"
     # program_name = "grasp_place_v2"
     program_name = "teleop"
-    test_option = {"video_file" : "./data/teleop/grasp.MOV"}
+    test_option = {"video_file": "./data/teleop/grasp.MOV"}
     test(program_name=program_name, test_option=test_option)
